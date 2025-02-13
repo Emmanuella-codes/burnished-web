@@ -8,6 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User } from './entities/user.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { EmailService } from './services/email.service';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [AuthService, JwtStrategy, EmailService],
   exports: [JwtStrategy, PassportModule],
 })
 export class AuthModule {}

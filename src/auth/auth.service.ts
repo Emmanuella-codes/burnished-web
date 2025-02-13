@@ -1,6 +1,8 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -31,6 +33,11 @@ export class AuthService {
     const { firstname, lastname, email, password } = signUpDto;
     const verificationToken = uuidv4();
 
+    if (!firstname) throw new BadRequestException('First name is required');
+    if (!lastname) throw new BadRequestException('Last name is required');
+    if (!email) throw new BadRequestException('Email is required');
+    if (!password) throw new BadRequestException('Password is required');
+
     // check if user exists
     const existingUser = await this.userRepository.findOne({
       where: { email },
@@ -50,10 +57,19 @@ export class AuthService {
 
     user.verificationToken = verificationToken;
     await this.userRepository.save(user);
-    await this.emailService.sendVerificationEmail(
-      user.email,
-      verificationToken,
-    );
+
+    try {
+      await this.emailService.sendVerificationEmail(
+        user.email,
+        verificationToken,
+      );
+    } catch (error) {
+      console.error('Email sending failed:', error);
+      throw new InternalServerErrorException(
+        'Failed to send verification email',
+      );
+    }
+
     const token = this.generateToken(user);
     delete user.password;
 
