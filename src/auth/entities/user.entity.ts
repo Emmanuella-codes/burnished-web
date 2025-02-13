@@ -1,3 +1,4 @@
+import { Exclude } from 'class-transformer';
 import {
   Entity,
   Column,
@@ -5,6 +6,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { UserRole } from '../enums/user-role.enum';
 
 @Entity('users')
 export class User {
@@ -25,6 +27,24 @@ export class User {
 
   @Column({ default: false })
   isVerified: boolean;
+
+  @Column({ nullable: true })
+  @Exclude()
+  verificationToken: string;
+
+  @Column({ nullable: true })
+  @Exclude()
+  resetPasswordToken: string;
+
+  @Column({ nullable: true })
+  resetPasswordExpires: Date;
+
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.USER,
+  })
+  role: UserRole;
 
   @CreateDateColumn()
   createdAt: Date;
