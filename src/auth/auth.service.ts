@@ -115,6 +115,26 @@ export class AuthService {
     return { user, token, message: 'Login successfull' };
   }
 
+  async googleLogin(user: any): Promise<{ token: string }> {
+    const { firstname, lastname, email } = user;
+
+    let existingUser = await this.userRepository.findOne({
+      where: { email },
+    });
+    if (!existingUser) {
+      existingUser = this.userRepository.create({
+        email,
+        firstname: firstname,
+        lastname: lastname,
+        isVerified: true,
+      });
+      await this.userRepository.save(existingUser);
+    }
+
+    const token = this.generateToken(existingUser);
+    return { token };
+  }
+
   async forgotPassword(email: string) {
     const user = await this.userRepository.findOne({ where: { email } });
     if (!user) {
