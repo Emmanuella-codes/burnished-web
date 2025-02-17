@@ -8,7 +8,8 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ProcessingStatus } from '../enums/processing-status.enum';
+import { ProcessingStatus } from '../../processing/enums/processing-status.enum';
+import { ProcessingMode } from 'src/processing/enums/processing-mode.enum';
 
 @Entity()
 export class Document {
@@ -44,7 +45,16 @@ export class Document {
   })
   status: ProcessingStatus;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ nullable: true })
+  jobDescription: string;
+
+  @Column({
+    type: 'enum',
+    enum: ProcessingMode,
+  })
+  mode: ProcessingMode;
+
+  @Column({ type: 'json', nullable: true })
   feedback: Record<string, any>;
 
   @CreateDateColumn()
