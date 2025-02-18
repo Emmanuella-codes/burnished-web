@@ -26,18 +26,22 @@ export class DocumentResponseDto {
   updatedAt: Date;
 
   @Expose()
+  @Transform(({ obj }) =>
+    obj.status === ProcessingStatus.COMPLETED && obj.formattedFilePath
+      ? `/api/documents/download/${obj.id}`
+      : null,
+  )
   downloadUrl?: string;
 
   @Expose()
+  @Transform(({ obj }) =>
+    obj.status === ProcessingStatus.COMPLETED && obj.coverLetterPath
+      ? `/api/documents/cover-letter/${obj.id}`
+      : null,
+  )
   coverLetterUrl?: string;
 
   constructor(partial: Partial<DocumentResponseDto>) {
     Object.assign(this, partial);
-
-    if (
-      this.status === ProcessingStatus.COMPLETED &&
-      partial.formattedFilePath
-    ) {
-    }
   }
 }

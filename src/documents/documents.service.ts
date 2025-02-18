@@ -6,6 +6,8 @@ import { Repository } from 'typeorm';
 import { ProcessingStatus } from '../processing/enums/processing-status.enum';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { Readable } from 'stream';
+import * as fsSync from 'fs';
 
 @Injectable()
 export class DocumentsService {
@@ -84,6 +86,27 @@ export class DocumentsService {
     // write file to disk
     await fs.writeFile(filePath, file.buffer);
     return filePath;
+  }
+
+  async getFile(filePath: string): Promise<Buffer> {
+    try {
+      return fs.readFile(filePath);
+    } catch (error) {
+      console.error('Error getting document:', error);
+      throw new NotFoundException(`File not found: ${filePath}`);
+    }
+  }
+
+  async getFileStream(filePath: string): Promise<Readable> {
+    try {
+      // check if file exists
+      await fs.access(filePath);
+      // create a read stream
+      return fsSync.createReadStream(filePath);
+    } catch (error) {
+      console.error('Error getting file stream:', error);
+      throw new NotFoundException(`File not found: ${filePath}`);
+    }
   }
 
   async delete(id: string): Promise<void> {
