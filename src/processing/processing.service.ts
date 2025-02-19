@@ -7,6 +7,7 @@ import * as FormData from 'form-data';
 import * as fs from 'fs';
 import { ProcessingMode } from './enums/processing-mode.enum';
 import { catchError, firstValueFrom } from 'rxjs';
+import { ProcessingResultDto } from './dto/processing-result.dto';
 
 @Injectable()
 export class ProcessingService {
@@ -77,6 +78,33 @@ export class ProcessingService {
         ProcessingStatus.FAILED,
       );
       throw error;
+    }
+  }
+
+  async handleProcessingResult(result: ProcessingResultDto): Promise<void> {
+    try {
+      this.logger.log(
+        `Received processing result for document ${result.documentID}`,
+      );
+
+      await this.documentsService.updateProcessingResult(result.documentID, {
+        formattedFilePath: result.formattedFilePath,
+        coverLetterPath: result.coverLetterPath,
+        feedback: result.feedback,
+        status: ProcessingStatus.COMPLETED,
+      });
+
+      this.logger.log(
+        `Document ${result.documentID} processing completed successfully`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to handle processing result for document ${result.documentID}: ${error.message}`,
+      );
+      await this.documentsService.updateStatus(
+        result.documentID,
+        ProcessingStatus.FAILED,
+      );
     }
   }
 }
