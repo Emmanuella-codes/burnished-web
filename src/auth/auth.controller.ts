@@ -4,6 +4,8 @@ import {
   Get,
   Param,
   Post,
+  Req,
+  Res,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -19,6 +21,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './decorators/roles.decorator';
 import { UserRole } from './enums/user-role.enum';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 @UseInterceptors(LoggingInterceptor)
@@ -34,6 +37,18 @@ export class AuthController {
   @Post('login')
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
+  }
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {}
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleAuthRedirect(@Req() req, @Res() res) {
+    const user = req.user;
+    const { token } = await this.authService.googleLogin(user);
+    res.redirect(`${process.env.FRONTEND_URL}/auth/success?token=${token}`);
   }
 
   @Get('verify/:token')
