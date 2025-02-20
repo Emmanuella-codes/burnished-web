@@ -4,6 +4,7 @@ import { DocumentsController } from './documents.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Document } from './entities/document.entity';
 import { ConfigModule } from '@nestjs/config';
+import { ProcessingModule } from 'src/processing/processing.module';
 
 @Module({
   imports: [
