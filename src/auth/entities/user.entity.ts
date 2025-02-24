@@ -5,8 +5,10 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { UserRole } from '../enums/user-role.enum';
+import { Document } from 'src/documents/entities/document.entity';
 
 @Entity('users')
 export class User {
@@ -45,6 +47,9 @@ export class User {
     default: UserRole.USER,
   })
   role: UserRole;
+
+  @OneToMany(() => Document, (document) => document.user)
+  documents: Document[];
 
   @CreateDateColumn()
   createdAt: Date;
