@@ -6,6 +6,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { UserRole } from '../enums/user-role.enum';
 import { Document } from 'src/documents/entities/document.entity';
@@ -21,7 +22,8 @@ export class User {
   @Column()
   lastname: string;
 
-  @Column({ unique: true })
+  @Index({ unique: true })
+  @Column()
   email: string;
 
   @Column()
