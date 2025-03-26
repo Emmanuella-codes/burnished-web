@@ -188,6 +188,7 @@ export class AuthService {
 
   private generateToken(user: User): string {
     const payload: JwtPayload = {
+      sub: '', // come back to this
       userID: user.id,
       email: user.email,
     };
