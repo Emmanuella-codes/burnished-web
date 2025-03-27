@@ -3,7 +3,6 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -53,9 +52,9 @@ export class AuthService {
       lastname,
       email,
       password: hashedPassword,
+      verificationToken,
     });
 
-    user.verificationToken = verificationToken;
     await this.userRepository.save(user);
 
     try {
@@ -71,7 +70,6 @@ export class AuthService {
     }
 
     const token = this.generateToken(user);
-    delete user.password;
 
     return {
       user,
@@ -81,13 +79,14 @@ export class AuthService {
     };
   }
 
-  async verifyEmail(token: string) {
+  async verifyEmail(token: string): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({
       where: { verificationToken: token },
     });
     if (!user) {
-      throw new NotFoundException('Invalid verification token');
+      throw new BadRequestException('Invalid verification token');
     }
+
     user.isVerified = true;
     user.verificationToken = null;
     await this.userRepository.save(user);
@@ -110,32 +109,37 @@ export class AuthService {
     }
 
     const token = this.generateToken(user);
-    delete user.password;
-
     return { user, token, message: 'Login successfull' };
   }
 
-  async googleLogin(user: any): Promise<{ token: string }> {
-    const { firstname, lastname, email } = user;
+  async googleLogin(googleUser: {
+    email: string;
+    firstname: string;
+    lastname: string;
+    picture?: string;
+    accessToken: string;
+  }): Promise<{ user: User; token: string }> {
+    const { firstname, lastname, email } = googleUser;
 
-    let existingUser = await this.userRepository.findOne({
+    let user = await this.userRepository.findOne({
       where: { email },
     });
-    if (!existingUser) {
-      existingUser = this.userRepository.create({
+    if (!user) {
+      user = this.userRepository.create({
         email,
-        firstname: firstname,
-        lastname: lastname,
+        firstname,
+        lastname,
         isVerified: true,
+        password: uuidv4(), // random password for OAuth users.
       });
-      await this.userRepository.save(existingUser);
+      await this.userRepository.save(user);
     }
 
-    const token = this.generateToken(existingUser);
-    return { token };
+    const token = this.generateToken(user);
+    return { user, token };
   }
 
-  async forgotPassword(email: string) {
+  async forgotPassword(email: string): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({ where: { email } });
     if (!user) {
       return {
@@ -146,7 +150,7 @@ export class AuthService {
 
     const resetToken = uuidv4();
     user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = new Date(Date.now() + 3600000);
+    user.resetPasswordExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); //24 hrs
     await this.userRepository.save(user);
     await this.emailService.sendPasswordResetEmail(email, resetToken);
     return {
@@ -155,7 +159,9 @@ export class AuthService {
     };
   }
 
-  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+  async resetPassword(
+    resetPasswordDto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({
       where: {
         resetPasswordToken: resetPasswordDto.token,
@@ -164,7 +170,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundException('Invalid or expired reset token');
+      throw new BadRequestException('Invalid or expired reset token');
     }
 
     user.password = await bcrypt.hash(resetPasswordDto.newPassword, 10);
@@ -177,20 +183,20 @@ export class AuthService {
 
   async validateUser(payload: JwtPayload): Promise<User> {
     const user = await this.userRepository.findOne({
-      where: { id: payload.userID },
+      where: { id: payload.sub },
     });
 
     if (!user) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException('Invalid user');
     }
     return user;
   }
 
   private generateToken(user: User): string {
     const payload: JwtPayload = {
-      sub: '', // come back to this
-      userID: user.id,
+      sub: user.id,
       email: user.email,
+      role: user.role,
     };
     return this.jwtService.sign(payload);
   }

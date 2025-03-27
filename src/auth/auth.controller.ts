@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Req,
@@ -30,13 +32,31 @@ export class AuthController {
 
   @Post('signup')
   @UseGuards(CustomThrottlerGuard)
+  @HttpCode(HttpStatus.CREATED)
   async signUp(@Body() signUpDto: SignUpDto) {
-    return this.authService.signUp(signUpDto);
+    const result = await this.authService.signUp(signUpDto);
+    return {
+      message: result.message,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+      },
+      accessToken: result.token,
+    };
   }
 
   @Post('login')
+  @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+    const result = await this.authService.login(loginDto);
+    return {
+      message: result.message,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+      },
+      accessToken: result.token,
+    };
   }
 
   @Get('google')
