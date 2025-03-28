@@ -25,15 +25,20 @@ import { GoogleStrategy } from './strategies/google.strategy';
       }),
       inject: [ConfigService],
     }),
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60,
-        limit: 10,
-      },
-    ]),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: () => [
+        {
+          ttl: 60,
+          limit: 10, // requests
+        },
+      ],
+    }),
+    ConfigModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, EmailService, GoogleStrategy],
-  exports: [JwtStrategy, PassportModule],
+  providers: [AuthService, JwtStrategy, GoogleStrategy, EmailService],
+  exports: [AuthService, JwtStrategy, PassportModule],
 })
 export class AuthModule {}

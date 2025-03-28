@@ -109,7 +109,7 @@ export class AuthService {
     }
 
     const token = this.generateToken(user);
-    return { user, token, message: 'Login successfull' };
+    return { user, token, message: 'Login successful' };
   }
 
   async googleLogin(googleUser: {
