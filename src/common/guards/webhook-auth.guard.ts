@@ -21,7 +21,7 @@ export class WebhookAuthGuard implements CanActivate {
       );
     }
 
-    const webhookSecret = this.configService.get<string>('webhooks.secret');
+    const webhookSecret = this.configService.get<string>('WEBHOOK_SECRET');
     if (!webhookSecret) {
       throw new UnauthorizedException(
         'Webhook secret is not configured on the server',
@@ -36,7 +36,10 @@ export class WebhookAuthGuard implements CanActivate {
   }
 
   private extractTokenFromHeader(request: Request): string | undefined {
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return undefined;
+
+    const [type, token] = authHeader.split(' ');
     return type === 'Bearer' ? token : undefined;
   }
 }
