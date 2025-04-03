@@ -1,5 +1,9 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentsService } from 'src/documents/documents.service';
 import { ProcessingStatus } from './enums/processing-status.enum';
@@ -39,11 +43,13 @@ export class ProcessingService {
 
       // get microservice url and api key
       const microServiceUrl =
-        this.configService.get<string>('microservice.url');
-      const apiKey = this.configService.get<string>('microservice.apiKey');
+        this.configService.get<string>('MICROSERVICE_URL');
+      const apiKey = this.configService.get<string>('MICROSERVICE_API_KEY');
 
       if (!microServiceUrl) {
-        throw new Error('Microservice URL not configured');
+        throw new InternalServerErrorException(
+          'Microservice URL not configured',
+        );
       }
 
       // send to the microservice
@@ -58,11 +64,13 @@ export class ProcessingService {
           .pipe(
             catchError((error) => {
               this.logger.error(`Error calling microservice: ${error.message}`);
-              this.documentsService.updateStatus(
-                documentID,
-                ProcessingStatus.FAILED,
+              // this.documentsService.updateStatus(
+              //   documentID,
+              //   ProcessingStatus.FAILED,
+              // );
+              throw new InternalServerErrorException(
+                'Failed to reach microservice',
               );
-              throw error;
             }),
           ),
       );
@@ -91,7 +99,11 @@ export class ProcessingService {
         formattedFilePath: result.formattedFilePath,
         coverLetterPath: result.coverLetterPath,
         feedback: result.feedback,
-        status: ProcessingStatus.COMPLETED,
+        status:
+          result.status === ProcessingStatus.COMPLETED
+            ? ProcessingStatus.COMPLETED
+            : ProcessingStatus.FAILED,
+        // error: result.error,
       });
 
       this.logger.log(
