@@ -51,6 +51,11 @@ export class ProcessingService {
           'Microservice URL not configured',
         );
       }
+      if (!apiKey) {
+        throw new InternalServerErrorException(
+          'Microservice API key not configured',
+        );
+      }
 
       // send to the microservice
       const response = await firstValueFrom(

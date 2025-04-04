@@ -16,7 +16,7 @@ export class Document {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User, (user) => user.documents)
+  @ManyToOne(() => User, (user) => user.documents, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userID' })
   user: User;
 
@@ -32,10 +32,10 @@ export class Document {
   @Column()
   originalFilePath: string;
 
-  @Column({ nullable: false })
+  @Column({ nullable: true })
   formattedFilePath: string;
 
-  @Column({ nullable: false })
+  @Column({ nullable: true })
   coverLetterPath: string;
 
   @Column({
@@ -54,7 +54,7 @@ export class Document {
   })
   mode: ProcessingMode;
 
-  @Column({ type: 'json', nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
   feedback: Record<string, any>;
 
   @CreateDateColumn()

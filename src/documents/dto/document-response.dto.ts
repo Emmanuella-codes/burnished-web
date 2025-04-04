@@ -16,7 +16,7 @@ export class DocumentResponseDto {
   status: ProcessingStatus;
 
   @Expose()
-  @Transform(({ obj }) => (obj.feedback ? true : false))
+  @Transform(({ obj }) => !!obj.feedback, { toClassOnly: true }) //transformations only apply when serializing to the response
   hasFeedback: boolean;
 
   @Expose()
@@ -26,18 +26,22 @@ export class DocumentResponseDto {
   updatedAt: Date;
 
   @Expose()
-  @Transform(({ obj }) =>
-    obj.status === ProcessingStatus.COMPLETED && obj.formattedFilePath
-      ? `/api/documents/download/${obj.id}`
-      : null,
+  @Transform(
+    ({ obj }) =>
+      obj.status === ProcessingStatus.COMPLETED && obj.formattedFilePath
+        ? `/api/documents/download/${obj.id}`
+        : null,
+    { toClassOnly: true },
   )
   downloadUrl?: string;
 
   @Expose()
-  @Transform(({ obj }) =>
-    obj.status === ProcessingStatus.COMPLETED && obj.coverLetterPath
-      ? `/api/documents/cover-letter/${obj.id}`
-      : null,
+  @Transform(
+    ({ obj }) =>
+      obj.status === ProcessingStatus.COMPLETED && obj.coverLetterPath
+        ? `/api/documents/cover-letter/${obj.id}`
+        : null,
+    { toClassOnly: true },
   )
   coverLetterUrl?: string;
 
