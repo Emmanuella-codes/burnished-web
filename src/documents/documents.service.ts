@@ -1,5 +1,10 @@
 import { ConfigService } from '@nestjs/config';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Document } from './entities/document.entity';
 import { Repository } from 'typeorm';
@@ -11,6 +16,8 @@ import * as fsSync from 'fs';
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
+
   constructor(
     @InjectRepository(Document)
     private documentRepository: Repository<Document>,
@@ -19,7 +26,12 @@ export class DocumentsService {
 
   async create(documentData: Partial<Document>): Promise<Document> {
     const document = this.documentRepository.create(documentData);
-    return this.documentRepository.save(document);
+    try {
+      return this.documentRepository.save(document);
+    } catch (error) {
+      this.logger.error(`Failed to create document: ${error.message}`);
+      throw new InternalServerErrorException('Failed to create document');
+    }
   }
 
   async findOne(id: string): Promise<Document> {
@@ -44,13 +56,27 @@ export class DocumentsService {
   async update(id: string, updateData: Partial<Document>): Promise<Document> {
     const document = await this.findOne(id);
     Object.assign(document, updateData);
-    return this.documentRepository.save(document);
+    try {
+      return this.documentRepository.save(document);
+    } catch (error) {
+      this.logger.error(`Failed to update document ${id}: ${error.message}`);
+      throw new InternalServerErrorException('Failed to update document');
+    }
   }
 
   async updateStatus(id: string, status: ProcessingStatus): Promise<Document> {
     const document = await this.findOne(id);
     document.status = status;
-    return this.documentRepository.save(document);
+    try {
+      return this.documentRepository.save(document);
+    } catch (error) {
+      this.logger.error(
+        `Failed to update status for document ${id}: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'Failed to update document status',
+      );
+    }
   }
 
   async updateProcessingResult(
@@ -60,12 +86,29 @@ export class DocumentsService {
       coverLetterPath?: string;
       feedback?: string;
       status?: ProcessingStatus;
+      error?: string;
     },
   ): Promise<Document> {
     const document = await this.findOne(id);
 
-    Object.assign(document, updates);
-    return this.documentRepository.save(document);
+    Object.assign(document, {
+      formattedFilePath: updates.formattedFilePath,
+      coverLetterPath: updates.coverLetterPath,
+      feedback: updates.feedback,
+      status: updates.status || document.status,
+      error: updates.error,
+    });
+
+    try {
+      return await this.documentRepository.save(document);
+    } catch (error) {
+      this.logger.error(
+        `Failed to update processing result for document ${id}: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'Failed to update processing result',
+      );
+    }
   }
 
   async saveFile(
@@ -73,27 +116,36 @@ export class DocumentsService {
     documentID: string,
   ): Promise<string> {
     const uploadDir = this.configService.get<string>(
-      'uploads.directory',
+      'UPLOADS_DIRECTORY',
       'uploads',
     );
 
-    await fs.mkdir(uploadDir, { recursive: true });
-
-    // create filename using document ID to prevent collisions
-    const filename = `${documentID}-${file.originalname.replace(/\s+/g, '_')}`;
-    const filePath = path.join(uploadDir, filename);
-
-    // write file to disk
-    await fs.writeFile(filePath, file.buffer);
-    return filePath;
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+      const sanitizedFilename = file.originalname.replace(
+        /[^a-zA-Z0-9.-]/g,
+        '_',
+      );
+      const filename = `${documentID}-${sanitizedFilename}`;
+      const filePath = path.join(uploadDir, filename);
+      await fs.writeFile(filePath, file.buffer);
+      this.logger.log(`Saved file for document ${documentID} at ${filePath}`);
+      return filePath;
+    } catch (error) {
+      this.logger.error(
+        `Failed to save file for document ${documentID}: ${error.message}`,
+      );
+      throw new InternalServerErrorException('Failed to save file');
+    }
   }
 
   async getFile(filePath: string): Promise<Buffer> {
     try {
-      return fs.readFile(filePath);
+      await fs.access(filePath);
+      return await fs.readFile(filePath);
     } catch (error) {
-      console.error('Error getting document:', error);
-      throw new NotFoundException(`File not found: ${filePath}`);
+      this.logger.error(`Failed to read file ${filePath}: ${error.message}`);
+      throw new NotFoundException('File not found');
     }
   }
 
@@ -104,7 +156,7 @@ export class DocumentsService {
       // create a read stream
       return fsSync.createReadStream(filePath);
     } catch (error) {
-      console.error('Error getting file stream:', error);
+      this.logger.error(`Failed to stream file ${filePath}: ${error.message}`);
       throw new NotFoundException(`File not found: ${filePath}`);
     }
   }
@@ -113,17 +165,28 @@ export class DocumentsService {
     const document = await this.findOne(id);
 
     try {
-      if (document.originalFilePath) {
-        await fs.unlink(document.originalFilePath);
+      const filePaths = [
+        document.originalFilePath,
+        document.formattedFilePath,
+        document.coverLetterPath,
+      ].filter(Boolean);
+
+      for (const filePath of filePaths) {
+        try {
+          await fs.unlink(filePath);
+          this.logger.log(`Deleted file ${filePath} for document ${id}`);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to delete file ${filePath}: ${error.message}`,
+          );
+        }
       }
-      if (document.formattedFilePath) {
-        await fs.unlink(document.formattedFilePath);
-      }
-      if (document.coverLetterPath) {
-        await fs.unlink(document.coverLetterPath);
-      }
+
+      await this.documentRepository.remove(document);
+      this.logger.log(`Deleted document ${id}`);
     } catch (error) {
-      console.error('Error deleting document files:', error);
+      this.logger.error(`Failed to delete document ${id}: ${error.message}`);
+      throw new InternalServerErrorException('Failed to delete document');
     }
 
     await this.documentRepository.remove(document);
