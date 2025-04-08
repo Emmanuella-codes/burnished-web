@@ -14,6 +14,7 @@ import {
   ParseUUIDPipe,
   Res,
   Delete,
+  ClassSerializerInterceptor,
 } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
@@ -24,6 +25,7 @@ import { ProcessingService } from 'src/processing/processing.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 import { Response } from 'express';
 import * as path from 'path';
+import { DocumentResponseDto } from './dto/document-response.dto';
 
 @Controller('documents')
 export class DocumentsController {
@@ -40,12 +42,12 @@ export class DocumentsController {
         fileSize: 10 * 1024 * 1024, // 10mb
       },
       fileFilter: (req, file, cb) => {
+        const allowedMimes = [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
         // check file types - allow pdf and docx
-        if (
-          file.mimetype === 'application/pdf' ||
-          file.mimetype ===
-            '/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        ) {
+        if (allowedMimes.includes(file.mimetype)) {
           cb(null, true);
         } else {
           cb(
@@ -61,18 +63,14 @@ export class DocumentsController {
     @Body() body: UploadDocumentDto,
     @Req() req,
   ) {
-    const { mode, jobDescription } = body;
-
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
 
-    if (!body.mode) {
-      throw new BadRequestException('Invalid processing mode');
-    }
+    const { mode, jobDescription } = body;
 
     // formatting mode
-    if (body.mode === ProcessingMode.FORMAT && !body.jobDescription) {
+    if (mode === ProcessingMode.FORMAT && !jobDescription) {
       throw new BadRequestException(
         'Job description is required for formatting mode',
       );
@@ -112,12 +110,15 @@ export class DocumentsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  async getUserDocuments(@Req() req) {
-    return this.documentsService.findByUser(req.user.id);
+  @UseInterceptors(ClassSerializerInterceptor)
+  async getUserDocuments(@Req() req): Promise<DocumentResponseDto[]> {
+    const documents = await this.documentsService.findByUser(req.user.id);
+    return documents.map((doc) => new DocumentResponseDto(doc));
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(ClassSerializerInterceptor)
   async getDocument(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     const document = await this.documentsService.findOne(id);
 
@@ -125,10 +126,11 @@ export class DocumentsController {
     if (document.userID !== req.user.id) {
       throw new NotFoundException('Document not found');
     }
-    return document;
+    return new DocumentResponseDto(document);
   }
 
-  @Get('download/formatted/:id')
+  @Get('download/:id')
+  @UseGuards(JwtAuthGuard)
   async downloadFormattedDocument(
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
@@ -148,14 +150,14 @@ export class DocumentsController {
     const filename = path.basename(document.formattedFilePath);
 
     res.set({
-      'Content-Type': 'application/pdf',
+      'Content-Type': document.mimeType || 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
     });
 
-    fileStream.pipe(res);
+    return fileStream.pipe(res);
   }
 
-  @Get('download/coverLetter/:id')
+  @Get('coverLetter/:id')
   @UseGuards(JwtAuthGuard)
   async downloadCoverLetter(
     @Param('id', ParseUUIDPipe) id: string,
@@ -180,7 +182,7 @@ export class DocumentsController {
       'Content-Disposition': `attachment; filename="${filename}"`,
     });
 
-    fileStream.pipe(res);
+    return fileStream.pipe(res);
   }
 
   @Get('feedback/:id')
