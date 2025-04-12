@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   HttpCode,
+  HttpStatus,
   Logger,
   Post,
   UseGuards,
@@ -17,7 +18,7 @@ export class ProcessingWebhookController {
   constructor(private readonly processingService: ProcessingService) {}
 
   @Post('result')
-  @HttpCode(200)
+  @HttpCode(HttpStatus.OK)
   @UseGuards(WebhookAuthGuard)
   async handleProcessingResult(@Body() result: ProcessingResultDto) {
     this.logger.log(
@@ -25,6 +26,6 @@ export class ProcessingWebhookController {
     );
     await this.processingService.handleProcessingResult(result);
 
-    return { success: true };
+    return { message: 'Webhook processed successfully' };
   }
 }

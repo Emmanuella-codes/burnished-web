@@ -2,10 +2,11 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
-  Req,
-  Res,
+  Request,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -30,13 +31,31 @@ export class AuthController {
 
   @Post('signup')
   @UseGuards(CustomThrottlerGuard)
+  @HttpCode(HttpStatus.CREATED)
   async signUp(@Body() signUpDto: SignUpDto) {
-    return this.authService.signUp(signUpDto);
+    const result = await this.authService.signUp(signUpDto);
+    return {
+      message: result.message,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+      },
+      accessToken: result.token,
+    };
   }
 
   @Post('login')
+  @HttpCode(HttpStatus.OK)
   async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+    const result = await this.authService.login(loginDto);
+    return {
+      message: result.message,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+      },
+      accessToken: result.token,
+    };
   }
 
   @Get('google')
@@ -45,27 +64,38 @@ export class AuthController {
 
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
-  async googleAuthRedirect(@Req() req, @Res() res) {
-    const user = req.user;
-    const { token } = await this.authService.googleLogin(user);
-    res.redirect(`${process.env.FRONTEND_URL}/auth/success?token=${token}`);
+  async googleAuthRedirect(@Request() req) {
+    const result = await this.authService.googleLogin(req.user);
+    return {
+      message: 'Google login successful',
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+      },
+      accessToken: result.token,
+    };
   }
 
   @Get('verify/:token')
   async verifyEmail(@Param('token') token: string) {
-    return this.authService.verifyEmail(token);
+    const result = await this.authService.verifyEmail(token);
+    return { message: result.message };
   }
 
   @Post('forgot-password')
   @UseGuards(CustomThrottlerGuard)
+  @HttpCode(HttpStatus.OK)
   async forgotPassword(@Body('email') email: string) {
-    return this.forgotPassword(email);
+    const result = await this.authService.forgotPassword(email);
+    return { message: result.message };
   }
 
   @Post('reset-password')
   @UseGuards(CustomThrottlerGuard)
+  @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    return this.authService.resetPassword(resetPasswordDto);
+    const result = await this.authService.resetPassword(resetPasswordDto);
+    return { message: result.message };
   }
 
   @Get('admin-only')
@@ -78,6 +108,13 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   getProfile(@GetUser() user: User) {
-    return user;
+    return {
+      message: 'Profile retrieved successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+    };
   }
 }

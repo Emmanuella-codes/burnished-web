@@ -27,7 +27,7 @@ import { ProcessingModule } from './processing/processing.module';
             database: process.env.DB_NAME,
           },
           uploads: {
-            directory: process.env.UPLOAD_DIR,
+            directory: process.env.UPLOADS_DIRECTORY || './uploads',
           },
           microservice: {
             url: process.env.MICROSERVICE_URL,
@@ -40,8 +40,9 @@ import { ProcessingModule } from './processing/processing.module';
       ],
     }),
     HttpModule.registerAsync({
+      imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
+      useFactory: () => ({
         timeout: 30000, // 30 seconds timeout
         maxRedirects: 5,
       }),
@@ -56,14 +57,16 @@ import { ProcessingModule } from './processing/processing.module';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        entities: [User],
-        synchronize: true,
+        entities: [User, Document],
+        synchronize: configService.get<string>('NODE_ENV') !== 'production',
+        logging: configService.get<string>('NODE_ENV') !== 'production',
       }),
     }),
     MulterModule.registerAsync({
+      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        dest: configService.get<string>('UPLOAD_DIR'),
+        dest: configService.get<string>('UPLOAD_DIRECTORY', './uploads'),
       }),
     }),
     AuthModule,
