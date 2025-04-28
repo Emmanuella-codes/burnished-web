@@ -1,12 +1,12 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { DocumentsModule } from 'src/documents/documents.module';
+import { DocumentsModule } from '../documents/documents.module';
 import { ProcessingService } from './processing.service';
 import { HttpModule } from '@nestjs/axios';
 import { ProcessingWebhookController } from './processing-webhook.controller';
 
 @Module({
-  imports: [ConfigModule, HttpModule, DocumentsModule],
+  imports: [ConfigModule, HttpModule, forwardRef(() => DocumentsModule)],
   controllers: [ProcessingWebhookController],
   providers: [ProcessingService],
   exports: [ProcessingService],

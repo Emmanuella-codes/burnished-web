@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User } from './auth/entities/user.entity';
+import { Document } from './documents/entities/document.entity';
 // import { UsersModule } from './users/users.module';
 import { DocumentsModule } from './documents/documents.module';
 import { HttpModule } from '@nestjs/axios';
@@ -74,7 +75,7 @@ import { ProcessingModule } from './processing/processing.module';
     DocumentsModule,
     ProcessingModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [],
+  providers: [],
 })
 export class AppModule {}
