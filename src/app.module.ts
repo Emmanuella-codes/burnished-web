@@ -1,13 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { AuthModule } from './auth/auth.module';
+import { AuthModule } from './basic-auth/auth.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { User } from './auth/entities/user.entity';
+// import { User } from './auth/entities/user.entity';
 import { Document } from './documents/entities/document.entity';
-// import { UsersModule } from './users/users.module';
 import { DocumentsModule } from './documents/documents.module';
 import { HttpModule } from '@nestjs/axios';
 import { MulterModule } from '@nestjs/platform-express';
@@ -58,7 +55,7 @@ import { ProcessingModule } from './processing/processing.module';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        entities: [User, Document],
+        entities: [Document],
         synchronize: configService.get<string>('NODE_ENV') !== 'production',
         logging: configService.get<string>('NODE_ENV') !== 'production',
       }),
@@ -71,7 +68,6 @@ import { ProcessingModule } from './processing/processing.module';
       }),
     }),
     AuthModule,
-    // UsersModule
     DocumentsModule,
     ProcessingModule,
   ],

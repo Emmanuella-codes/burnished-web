@@ -9,7 +9,7 @@ import {
   Index,
 } from 'typeorm';
 import { UserRole } from '../enums/user-role.enum';
-import { Document } from 'src/documents/entities/document.entity';
+// import { Document } from 'src/documents/entities/document.entity';
 
 @Entity('users')
 export class User {
@@ -50,7 +50,7 @@ export class User {
   })
   role: UserRole;
 
-  @OneToMany(() => Document, (document) => document.user)
+  // @OneToMany(() => Document, (document) => document.user)
   documents: Document[];
 
   @CreateDateColumn()

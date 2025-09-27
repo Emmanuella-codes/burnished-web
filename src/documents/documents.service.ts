@@ -37,7 +37,7 @@ export class DocumentsService {
   async findOne(id: string): Promise<Document> {
     const document = await this.documentRepository.findOne({
       where: { id },
-      relations: ['user'],
+      // relations: ['user'],
     });
 
     if (!document) {
@@ -46,12 +46,12 @@ export class DocumentsService {
     return document;
   }
 
-  async findByUser(userID: string): Promise<Document[]> {
-    return this.documentRepository.find({
-      where: { userID },
-      order: { createdAt: 'DESC' },
-    });
-  }
+  // async findByUser(userID: string): Promise<Document[]> {
+  //   return this.documentRepository.find({
+  //     where: { userID },
+  //     order: { createdAt: 'DESC' },
+  //   });
+  // }
 
   async update(id: string, updateData: Partial<Document>): Promise<Document> {
     const document = await this.findOne(id);
@@ -82,21 +82,21 @@ export class DocumentsService {
   async updateProcessingResult(
     id: string,
     updates: {
-      formattedFilePath?: string;
-      coverLetterPath?: string;
+      formattedFile?: string;
+      coverLetter?: string;
       feedback?: string;
       status?: ProcessingStatus;
-      error?: string;
+      // error?: string;
     },
   ): Promise<Document> {
     const document = await this.findOne(id);
 
     Object.assign(document, {
-      formattedFilePath: updates.formattedFilePath,
-      coverLetterPath: updates.coverLetterPath,
+      formattedFile: updates.formattedFile,
+      coverLetter: updates.coverLetter,
       feedback: updates.feedback,
       status: updates.status || document.status,
-      error: updates.error,
+      // error: updates.error,
     });
 
     try {
@@ -188,7 +188,5 @@ export class DocumentsService {
       this.logger.error(`Failed to delete document ${id}: ${error.message}`);
       throw new InternalServerErrorException('Failed to delete document');
     }
-
-    await this.documentRepository.remove(document);
   }
 }
