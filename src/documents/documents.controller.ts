@@ -27,6 +27,7 @@ import { UploadDocumentDto } from './dto/upload-document.dto';
 // import * as path from 'path';
 // import { DocumentResponseDto } from './dto/document-response.dto';
 import { ApiResponse } from 'src/common/dto/api-response.dto';
+import multer from 'multer';
 
 @Controller('documents')
 export class DocumentsController {
@@ -39,9 +40,8 @@ export class DocumentsController {
   // @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: {
-        fileSize: 10 * 1024 * 1024, // 10mb
-      },
+      storage: multer.memoryStorage(), // buffer in memory
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10mb
       fileFilter: (req, file, cb) => {
         const allowedMimes = [
           'application/pdf',

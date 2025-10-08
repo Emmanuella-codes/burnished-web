@@ -9,6 +9,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { HttpModule } from '@nestjs/axios';
 import { MulterModule } from '@nestjs/platform-express';
 import { ProcessingModule } from './processing/processing.module';
+import { SupabaseProvider } from './supabase/superbase.provider';
 
 @Module({
   imports: [
@@ -24,15 +25,16 @@ import { ProcessingModule } from './processing/processing.module';
             password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME,
           },
-          uploads: {
-            directory: process.env.UPLOADS_DIRECTORY || './uploads',
-          },
           microservice: {
             url: process.env.MICROSERVICE_URL,
             apiKey: process.env.MICROSERVICE_API_KEY,
           },
           webhooks: {
             secret: process.env.WEBHOOK_SECRET,
+          },
+          supabase: {
+            url: process.env.SUPABASE_URL,
+            serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
           },
         }),
       ],
@@ -60,18 +62,11 @@ import { ProcessingModule } from './processing/processing.module';
         logging: configService.get<string>('NODE_ENV') !== 'production',
       }),
     }),
-    MulterModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        dest: configService.get<string>('UPLOAD_DIRECTORY', './uploads'),
-      }),
-    }),
     AuthModule,
     DocumentsModule,
     ProcessingModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [SupabaseProvider],
 })
 export class AppModule {}
