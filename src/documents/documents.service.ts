@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import {
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -13,6 +14,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Readable } from 'stream';
 import * as fsSync from 'fs';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class DocumentsService {
@@ -21,6 +23,10 @@ export class DocumentsService {
   constructor(
     @InjectRepository(Document)
     private documentRepository: Repository<Document>,
+
+    @Inject('SUPABASE_CLIENT')
+    private supabase: SupabaseClient,
+    
     private configService: ConfigService,
   ) {}
 
@@ -37,7 +43,7 @@ export class DocumentsService {
   async findOne(id: string): Promise<Document> {
     const document = await this.documentRepository.findOne({
       where: { id },
-      relations: ['user'],
+      // relations: ['user'],
     });
 
     if (!document) {
@@ -46,12 +52,12 @@ export class DocumentsService {
     return document;
   }
 
-  async findByUser(userID: string): Promise<Document[]> {
-    return this.documentRepository.find({
-      where: { userID },
-      order: { createdAt: 'DESC' },
-    });
-  }
+  // async findByUser(userID: string): Promise<Document[]> {
+  //   return this.documentRepository.find({
+  //     where: { userID },
+  //     order: { createdAt: 'DESC' },
+  //   });
+  // }
 
   async update(id: string, updateData: Partial<Document>): Promise<Document> {
     const document = await this.findOne(id);
@@ -82,21 +88,21 @@ export class DocumentsService {
   async updateProcessingResult(
     id: string,
     updates: {
-      formattedFilePath?: string;
-      coverLetterPath?: string;
+      formattedFile?: string;
+      coverLetter?: string;
       feedback?: string;
       status?: ProcessingStatus;
-      error?: string;
+      // error?: string;
     },
   ): Promise<Document> {
     const document = await this.findOne(id);
 
     Object.assign(document, {
-      formattedFilePath: updates.formattedFilePath,
-      coverLetterPath: updates.coverLetterPath,
+      formattedFile: updates.formattedFile,
+      coverLetter: updates.coverLetter,
       feedback: updates.feedback,
       status: updates.status || document.status,
-      error: updates.error,
+      // error: updates.error,
     });
 
     try {
@@ -115,22 +121,29 @@ export class DocumentsService {
     file: Express.Multer.File,
     documentID: string,
   ): Promise<string> {
-    const uploadDir = this.configService.get<string>(
-      'UPLOADS_DIRECTORY',
-      'uploads',
-    );
+    const ext = path.extname(file.originalname);
+    const filename = `raw/${documentID}${ext}`;
 
     try {
-      await fs.mkdir(uploadDir, { recursive: true });
-      const sanitizedFilename = file.originalname.replace(
-        /[^a-zA-Z0-9.-]/g,
-        '_',
-      );
-      const filename = `${documentID}-${sanitizedFilename}`;
-      const filePath = path.join(uploadDir, filename);
-      await fs.writeFile(filePath, file.buffer);
-      this.logger.log(`Saved file for document ${documentID} at ${filePath}`);
-      return filePath;
+      const { error: uploadError } = await this.supabase.storage
+        .from('documents')
+        .upload(filename, file.buffer, {
+          contentType: file.mimetype,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw new InternalServerErrorException(`Failed to upload file: ${uploadError.message}`)
+      }
+      
+      // get public URL
+      const { data: publicData } = this.supabase.storage
+        .from('documents')
+        .getPublicUrl(filename);
+
+      this.logger.log(`Saved file for document ${documentID}`);
+      return publicData.publicUrl;
+      
     } catch (error) {
       this.logger.error(
         `Failed to save file for document ${documentID}: ${error.message}`,
@@ -188,7 +201,5 @@ export class DocumentsService {
       this.logger.error(`Failed to delete document ${id}: ${error.message}`);
       throw new InternalServerErrorException('Failed to delete document');
     }
-
-    await this.documentRepository.remove(document);
   }
 }

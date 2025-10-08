@@ -10,17 +10,17 @@ export class ProcessingResultDto {
 
   @IsOptional()
   @IsString()
-  formattedFilePath?: string;
+  formattedFile?: string;
 
   @IsOptional()
   @IsString()
-  coverLetterPath?: string;
+  coverLetter?: string;
 
   @IsOptional()
   @IsString()
-  feedback?: string;
+  feedback?: Record<string, any>;
 
-  @IsOptional()
-  @IsString()
-  error?: string;
+  // @IsOptional()
+  // @IsString()
+  // error?: string;
 }

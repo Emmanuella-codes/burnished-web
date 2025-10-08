@@ -23,28 +23,39 @@ export class ProcessingService {
     private readonly documentsService: DocumentsService,
   ) {}
 
-  async processDocument(documentID: string): Promise<void> {
+  async processDocument(documentID: string, jobDescription?: string): Promise<any> {
     try {
       const document = await this.documentsService.findOne(documentID);
-      //update the status to processing
-      await this.documentsService.updateStatus(
-        documentID,
-        ProcessingStatus.PROCESSING,
-      );
+
+      // check if original file exists
+      const fileExists = await fs.promises
+        .stat(document.originalFilePath)
+        .then(() => true)
+        .catch(() => false);
+
+        if (!fileExists) {
+          throw new InternalServerErrorException("Original file not found");
+        }
+
       //create form data
       const form = new FormData();
       form.append('file', fs.createReadStream(document.originalFilePath));
       form.append('documentID', document.id);
       form.append('mode', document.mode);
 
-      if (document.mode === ProcessingMode.FORMAT && document.jobDescription) {
-        form.append('jobDescription', document.jobDescription);
+      if (document.mode === ProcessingMode.FORMAT && jobDescription) {
+        form.append('jobDescription', jobDescription);
       }
 
       // get microservice url and api key
       const microServiceUrl =
         this.configService.get<string>('MICROSERVICE_URL');
       const apiKey = this.configService.get<string>('MICROSERVICE_API_KEY');
+
+      const headers = {
+        ...form.getHeaders(),
+        Authorization: `Bearer ${apiKey}`,
+      }
 
       if (!microServiceUrl) {
         throw new InternalServerErrorException(
@@ -58,37 +69,27 @@ export class ProcessingService {
       }
 
       // send to the microservice
-      const response = await firstValueFrom(
+      const { data } = await firstValueFrom(
         this.httpService
-          .post(`${microServiceUrl}/process`, form, {
-            headers: {
-              ...form.getHeaders(),
-              Authorization: `Bearer ${apiKey || ''}`,
-            },
-          })
+          .post(`${microServiceUrl}/process`, form, { headers })
           .pipe(
             catchError((error) => {
-              this.logger.error(`Error calling microservice: ${error.message}`);
-              // this.documentsService.updateStatus(
-              //   documentID,
-              //   ProcessingStatus.FAILED,
-              // );
+              const msg = error.response?.data?.message || error.message;
+              this.logger.error(`Error calling microservice: ${msg}`);
               throw new InternalServerErrorException(
-                'Failed to reach microservice',
+                `Microservice error: ${msg}`,
               );
             }),
           ),
       );
       this.logger.log(
-        `Document ${documentID} sent for processing. Response status: ${response.status}`,
+        `Document ${documentID} processed successfully. Returning feedback.`,
       );
+
+      return data;
     } catch (error) {
       this.logger.error(
         `Failed to process document ${documentID}: ${error.message}`,
-      );
-      await this.documentsService.updateStatus(
-        documentID,
-        ProcessingStatus.FAILED,
       );
       throw error;
     }
@@ -101,13 +102,10 @@ export class ProcessingService {
       );
 
       await this.documentsService.updateProcessingResult(result.documentID, {
-        formattedFilePath: result.formattedFilePath,
-        coverLetterPath: result.coverLetterPath,
-        feedback: result.feedback,
-        status:
-          result.status === ProcessingStatus.COMPLETED
-            ? ProcessingStatus.COMPLETED
-            : ProcessingStatus.FAILED,
+        formattedFile: result.formattedFile,
+        coverLetter: result.coverLetter,
+        feedback: typeof result.feedback === 'string' ? result.feedback : JSON.stringify(result.feedback),
+        status: result.status
         // error: result.error,
       });
 

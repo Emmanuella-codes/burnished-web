@@ -1,4 +1,4 @@
-import { User } from 'src/auth/entities/user.entity';
+// import { User } from 'src/auth/entities/user.entity';
 import {
   Column,
   CreateDateColumn,
@@ -16,20 +16,13 @@ export class Document {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User, (user) => user.documents, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'userID' })
-  user: User;
-
-  @Column()
-  userID: string;
-
   @Column()
   originalFilename: string;
 
   @Column()
   mimeType: string;
 
-  @Column()
+  @Column({ nullable: true })
   originalFilePath: string;
 
   @Column({ nullable: true })
@@ -45,17 +38,12 @@ export class Document {
   })
   status: ProcessingStatus;
 
-  @Column({ nullable: true })
-  jobDescription: string;
-
   @Column({
     type: 'enum',
     enum: ProcessingMode,
+    nullable: true,
   })
   mode: ProcessingMode;
-
-  @Column({ type: 'jsonb', nullable: true })
-  feedback: Record<string, any>;
 
   @CreateDateColumn()
   createdAt: Date;
