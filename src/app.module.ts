@@ -32,10 +32,10 @@ import { SupabaseProvider } from './supabase/superbase.provider';
           webhooks: {
             secret: process.env.WEBHOOK_SECRET,
           },
-          supabase: {
-            url: process.env.SUPABASE_URL,
-            serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-          },
+          // supabase: {
+          //   url: process.env.SUPABASE_URL,
+          //   serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          // },
         }),
       ],
     }),

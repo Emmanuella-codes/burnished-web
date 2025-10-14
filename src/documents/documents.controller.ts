@@ -19,15 +19,15 @@ import {
 import { DocumentsService } from './documents.service';
 // import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ProcessingMode } from 'src/processing/enums/processing-mode.enum';
-import { ProcessingStatus } from 'src/processing/enums/processing-status.enum';
-import { ProcessingService } from 'src/processing/processing.service';
+import { ProcessingMode } from '../processing/enums/processing-mode.enum';
+import { ProcessingStatus } from '../processing/enums/processing-status.enum';
+import { ProcessingService } from '../processing/processing.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 // import { Response } from 'express';
 // import * as path from 'path';
 // import { DocumentResponseDto } from './dto/document-response.dto';
-import { ApiResponse } from 'src/common/dto/api-response.dto';
-import multer from 'multer';
+import { ApiResponse } from '../common/dto/api-response.dto';
+import * as multer from 'multer';
 
 @Controller('documents')
 export class DocumentsController {
@@ -70,10 +70,23 @@ export class DocumentsController {
 
     const { mode, jobDescription } = body;
 
+    if (!mode) {
+      throw new BadRequestException(
+        'mode is required'
+      )
+    }
+
     // formatting mode
     if (mode === ProcessingMode.FORMAT && !jobDescription) {
       throw new BadRequestException(
         'Job description is required for formatting mode',
+      );
+    }
+
+    // cover letter
+    if (mode === ProcessingMode.LETTER && !jobDescription) {
+      throw new BadRequestException(
+        'Job description is required for generating cover letter',
       );
     }
 
@@ -87,21 +100,21 @@ export class DocumentsController {
         status: ProcessingStatus.PENDING,
       });
       // save file to disk
-      const filePath = await this.documentsService.saveFile(file, document.id);
-      // update document with file path
-      await this.documentsService.update(document.id, {
-        originalFilePath: filePath,
-      });
+      // const filePath = await this.documentsService.saveFile(file, document.id);
+      // // update document with file path
+      // await this.documentsService.update(document.id, {
+      //   originalFilePath: filePath,
+      // });
 
       //start processing
-      const result = await this.processingService.processDocument(document.id, jobDescription);
+      const result = await this.processingService.processDocument(file, mode, jobDescription);
 
       return ApiResponse.success('Document processed successfully', {
         id: document.id,
         filename: file.originalname,
         status: ProcessingStatus.COMPLETED,
         feedback: result.feedback,
-        formattedFile: result.formattedFile,
+        formattedResume: result.formattedResume,
         coverLetter: result.coverLetter,
       });
     } catch (error) {

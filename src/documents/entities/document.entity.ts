@@ -9,7 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { ProcessingStatus } from '../../processing/enums/processing-status.enum';
-import { ProcessingMode } from 'src/processing/enums/processing-mode.enum';
+import { ProcessingMode } from '../../processing/enums/processing-mode.enum';
 
 @Entity()
 export class Document {

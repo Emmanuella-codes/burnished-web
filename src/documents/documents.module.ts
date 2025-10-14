@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Document } from './entities/document.entity';
 import { ConfigModule } from '@nestjs/config';
 import { ProcessingModule } from '../processing/processing.module';
+// import { SupabaseProvider } from '../supabase/superbase.provider';
 
 @Module({
   imports: [
