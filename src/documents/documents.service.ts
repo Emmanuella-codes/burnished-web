@@ -11,10 +11,9 @@ import { Document } from './entities/document.entity';
 import { Repository } from 'typeorm';
 import { ProcessingStatus } from '../processing/enums/processing-status.enum';
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import { Readable } from 'stream';
 import * as fsSync from 'fs';
-import { SupabaseClient } from '@supabase/supabase-js';
+// import { SupabaseClient } from '@supabase/supabase-js';
 
 @Injectable()
 export class DocumentsService {
@@ -23,9 +22,6 @@ export class DocumentsService {
   constructor(
     @InjectRepository(Document)
     private documentRepository: Repository<Document>,
-
-    @Inject('SUPABASE_CLIENT')
-    private supabase: SupabaseClient,
     
     private configService: ConfigService,
   ) {}
@@ -88,7 +84,7 @@ export class DocumentsService {
   async updateProcessingResult(
     id: string,
     updates: {
-      formattedFile?: string;
+      formattedResume?: Record<string, any>;
       coverLetter?: string;
       feedback?: string;
       status?: ProcessingStatus;
@@ -98,7 +94,7 @@ export class DocumentsService {
     const document = await this.findOne(id);
 
     Object.assign(document, {
-      formattedFile: updates.formattedFile,
+      formattedResume: updates.formattedResume,
       coverLetter: updates.coverLetter,
       feedback: updates.feedback,
       status: updates.status || document.status,
@@ -117,40 +113,40 @@ export class DocumentsService {
     }
   }
 
-  async saveFile(
-    file: Express.Multer.File,
-    documentID: string,
-  ): Promise<string> {
-    const ext = path.extname(file.originalname);
-    const filename = `raw/${documentID}${ext}`;
+  // async saveFile(
+  //   file: Express.Multer.File,
+  //   documentID: string,
+  // ): Promise<string> {
+  //   const ext = path.extname(file.originalname);
+  //   const filename = `raw/${documentID}${ext}`;
 
-    try {
-      const { error: uploadError } = await this.supabase.storage
-        .from('documents')
-        .upload(filename, file.buffer, {
-          contentType: file.mimetype,
-          upsert: true,
-        });
+  //   try {
+  //     const { error: uploadError } = await this.supabase.storage
+  //       .from('documents')
+  //       .upload(filename, file.buffer, {
+  //         contentType: file.mimetype,
+  //         upsert: true,
+  //       });
 
-      if (uploadError) {
-        throw new InternalServerErrorException(`Failed to upload file: ${uploadError.message}`)
-      }
+  //     if (uploadError) {
+  //       throw new InternalServerErrorException(`Failed to upload file: ${uploadError.message}`)
+  //     }
       
-      // get public URL
-      const { data: publicData } = this.supabase.storage
-        .from('documents')
-        .getPublicUrl(filename);
+  //     // get public URL
+  //     const { data: publicData } = this.supabase.storage
+  //       .from('documents')
+  //       .getPublicUrl(filename);
 
-      this.logger.log(`Saved file for document ${documentID}`);
-      return publicData.publicUrl;
+  //     this.logger.log(`Saved file for document ${documentID}`);
+  //     return publicData.publicUrl;
       
-    } catch (error) {
-      this.logger.error(
-        `Failed to save file for document ${documentID}: ${error.message}`,
-      );
-      throw new InternalServerErrorException('Failed to save file');
-    }
-  }
+  //   } catch (error) {
+  //     this.logger.error(
+  //       `Failed to save file for document ${documentID}: ${error.message}`,
+  //     );
+  //     throw new InternalServerErrorException('Failed to save file');
+  //   }
+  // }
 
   async getFile(filePath: string): Promise<Buffer> {
     try {
@@ -174,32 +170,32 @@ export class DocumentsService {
     }
   }
 
-  async delete(id: string): Promise<void> {
-    const document = await this.findOne(id);
+  // async delete(id: string): Promise<void> {
+  //   const document = await this.findOne(id);
 
-    try {
-      const filePaths = [
-        document.originalFilePath,
-        document.formattedFilePath,
-        document.coverLetterPath,
-      ].filter(Boolean);
+  //   try {
+  //     const filePaths = [
+  //       document.originalFilePath,
+  //       document.formattedFilePath,
+  //       document.coverLetterPath,
+  //     ].filter(Boolean);
 
-      for (const filePath of filePaths) {
-        try {
-          await fs.unlink(filePath);
-          this.logger.log(`Deleted file ${filePath} for document ${id}`);
-        } catch (error) {
-          this.logger.warn(
-            `Failed to delete file ${filePath}: ${error.message}`,
-          );
-        }
-      }
+  //     for (const filePath of filePaths) {
+  //       try {
+  //         await fs.unlink(filePath);
+  //         this.logger.log(`Deleted file ${filePath} for document ${id}`);
+  //       } catch (error) {
+  //         this.logger.warn(
+  //           `Failed to delete file ${filePath}: ${error.message}`,
+  //         );
+  //       }
+  //     }
 
-      await this.documentRepository.remove(document);
-      this.logger.log(`Deleted document ${id}`);
-    } catch (error) {
-      this.logger.error(`Failed to delete document ${id}: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete document');
-    }
-  }
+  //     await this.documentRepository.remove(document);
+  //     this.logger.log(`Deleted document ${id}`);
+  //   } catch (error) {
+  //     this.logger.error(`Failed to delete document ${id}: ${error.message}`);
+  //     throw new InternalServerErrorException('Failed to delete document');
+  //   }
+  // }
 }

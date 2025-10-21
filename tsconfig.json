@@ -10,7 +10,6 @@
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": "./",
     "incremental": true,
     "tsBuildInfoFile": "./tsconfig.tsbuildinfo",
     "skipLibCheck": true,

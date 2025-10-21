@@ -10,7 +10,7 @@ export class ProcessingResultDto {
 
   @IsOptional()
   @IsString()
-  formattedFile?: string;
+  formattedResume?: Record<string, any>;
 
   @IsOptional()
   @IsString()

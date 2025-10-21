@@ -8,7 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ProcessingService } from './processing.service';
-import { WebhookAuthGuard } from 'src/common/guards/webhook-auth.guard';
+import { WebhookAuthGuard } from '../common/guards/webhook-auth.guard';
 import { ProcessingResultDto } from './dto/processing-result.dto';
 
 @Controller('webhooks/processing')
