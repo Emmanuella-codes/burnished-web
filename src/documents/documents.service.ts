@@ -11,7 +11,6 @@ import { Document } from './entities/document.entity';
 import { Repository } from 'typeorm';
 import { ProcessingStatus } from '../processing/enums/processing-status.enum';
 import * as fs from 'fs/promises';
-import * as path from 'path';
 import { Readable } from 'stream';
 import * as fsSync from 'fs';
 // import { SupabaseClient } from '@supabase/supabase-js';
@@ -171,32 +170,32 @@ export class DocumentsService {
     }
   }
 
-  async delete(id: string): Promise<void> {
-    const document = await this.findOne(id);
+  // async delete(id: string): Promise<void> {
+  //   const document = await this.findOne(id);
 
-    try {
-      const filePaths = [
-        document.originalFilePath,
-        document.formattedFilePath,
-        document.coverLetterPath,
-      ].filter(Boolean);
+  //   try {
+  //     const filePaths = [
+  //       document.originalFilePath,
+  //       document.formattedFilePath,
+  //       document.coverLetterPath,
+  //     ].filter(Boolean);
 
-      for (const filePath of filePaths) {
-        try {
-          await fs.unlink(filePath);
-          this.logger.log(`Deleted file ${filePath} for document ${id}`);
-        } catch (error) {
-          this.logger.warn(
-            `Failed to delete file ${filePath}: ${error.message}`,
-          );
-        }
-      }
+  //     for (const filePath of filePaths) {
+  //       try {
+  //         await fs.unlink(filePath);
+  //         this.logger.log(`Deleted file ${filePath} for document ${id}`);
+  //       } catch (error) {
+  //         this.logger.warn(
+  //           `Failed to delete file ${filePath}: ${error.message}`,
+  //         );
+  //       }
+  //     }
 
-      await this.documentRepository.remove(document);
-      this.logger.log(`Deleted document ${id}`);
-    } catch (error) {
-      this.logger.error(`Failed to delete document ${id}: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete document');
-    }
-  }
+  //     await this.documentRepository.remove(document);
+  //     this.logger.log(`Deleted document ${id}`);
+  //   } catch (error) {
+  //     this.logger.error(`Failed to delete document ${id}: ${error.message}`);
+  //     throw new InternalServerErrorException('Failed to delete document');
+  //   }
+  // }
 }

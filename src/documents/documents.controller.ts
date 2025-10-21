@@ -2,11 +2,11 @@ import {
   Controller,
   Post,
   Body,
-  // UseGuards,
   UseInterceptors,
   BadRequestException,
   UploadedFile,
-  // Req,
+  UseGuards,
+  Req,
   // InternalServerErrorException,
   // Get,
   // Param,
@@ -17,7 +17,6 @@ import {
   // ClassSerializerInterceptor,
 } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
-// import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProcessingMode } from '../processing/enums/processing-mode.enum';
 import { ProcessingStatus } from '../processing/enums/processing-status.enum';
@@ -28,6 +27,7 @@ import { UploadDocumentDto } from './dto/upload-document.dto';
 // import { DocumentResponseDto } from './dto/document-response.dto';
 import { ApiResponse } from '../common/dto/api-response.dto';
 import * as multer from 'multer';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @Controller('documents')
 export class DocumentsController {
@@ -37,7 +37,7 @@ export class DocumentsController {
   ) {}
 
   @Post('upload')
-  // @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: multer.memoryStorage(), // buffer in memory
@@ -62,7 +62,7 @@ export class DocumentsController {
   async uploadDocument(
     @UploadedFile() file: Express.Multer.File,
     @Body() body: UploadDocumentDto,
-    // @Req() req,
+    @Req() req,
   ) {
     if (!file) {
       throw new BadRequestException('No CV file uploaded');
@@ -93,7 +93,7 @@ export class DocumentsController {
     try {
       // create document record
       const document = await this.documentsService.create({
-        // userID: req.user.id,
+        user: req.user.name,
         originalFilename: file.originalname,
         mimeType: file.mimetype,
         mode,

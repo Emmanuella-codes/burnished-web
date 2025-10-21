@@ -3,8 +3,6 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  JoinColumn,
-  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -17,19 +15,13 @@ export class Document {
   id: string;
 
   @Column()
+  user: string;
+
+  @Column()
   originalFilename: string;
 
   @Column()
   mimeType: string;
-
-  @Column({ nullable: true })
-  originalFilePath: string;
-
-  @Column({ nullable: true })
-  formattedFilePath: string;
-
-  @Column({ nullable: true })
-  coverLetterPath: string;
 
   @Column({
     type: 'enum',

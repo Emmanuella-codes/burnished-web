@@ -8,6 +8,11 @@ export class AuthController {
 
   @Post('token')
   async getToken(@Body() body: TokenRequestDto) {
-    return this.authService.issueToken(body.name);
+    const { access_token } = await this.authService.issueToken(body.name);
+    return {
+      statusCode: 200,
+      token: access_token,
+      message: 'Token issued successfully',
+    };
   }
 }
