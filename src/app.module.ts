@@ -16,6 +16,7 @@ import { SupabaseProvider } from './supabase/superbase.provider';
     // configure typeorm with postgresql
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: ".env",
       load: [
         () => ({
           database: {
@@ -24,6 +25,8 @@ import { SupabaseProvider } from './supabase/superbase.provider';
             username: process.env.DB_USERNAME,
             password: process.env.DB_PASSWORD,
             database: process.env.DB_NAME,
+            pool_mode: process.env.POOL_MODE,
+            url: process.env.DATABASE_URL,
           },
           microservice: {
             url: process.env.MICROSERVICE_URL,
@@ -57,6 +60,8 @@ import { SupabaseProvider } from './supabase/superbase.provider';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
+        pool_mode: configService.get<string>('POOL_MODE'),
+        url: configService.get<string>('DATABASE_URL'),
         entities: [Document],
         synchronize: configService.get<string>('NODE_ENV') !== 'production',
         logging: configService.get<string>('NODE_ENV') !== 'production',
