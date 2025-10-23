@@ -91,23 +91,15 @@ export class DocumentsController {
     }
 
     try {
-      // create document record
+      //start processing
+      const result = await this.processingService.processDocument(file, mode, jobDescription);
       const document = await this.documentsService.create({
         user: req.user.name,
         originalFilename: file.originalname,
         mimeType: file.mimetype,
         mode,
-        status: ProcessingStatus.PENDING,
+        status: ProcessingStatus.COMPLETED,
       });
-      // save file to disk
-      // const filePath = await this.documentsService.saveFile(file, document.id);
-      // // update document with file path
-      // await this.documentsService.update(document.id, {
-      //   originalFilePath: filePath,
-      // });
-
-      //start processing
-      const result = await this.processingService.processDocument(file, mode, jobDescription);
 
       return ApiResponse.success('Document processed successfully', {
         id: document.id,
@@ -118,7 +110,7 @@ export class DocumentsController {
         coverLetter: result.coverLetter,
       });
     } catch (error) {
-      return ApiResponse.failure('Failed to process document', error.message);
+      throw new BadRequestException(`Document processing failed: ${error.message}`);
     }
   }
 
