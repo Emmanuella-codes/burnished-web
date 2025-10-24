@@ -1,6 +1,5 @@
 import { ConfigService } from '@nestjs/config';
 import {
-  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -8,16 +7,17 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Document } from './entities/document.entity';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { ProcessingStatus } from '../processing/enums/processing-status.enum';
 import * as fs from 'fs/promises';
 import { Readable } from 'stream';
 import * as fsSync from 'fs';
-// import { SupabaseClient } from '@supabase/supabase-js';
+import { ProcessingMode } from '../processing/enums/processing-mode.enum';
 
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
+  private readonly DAILY_LIMIT = 20;
 
   constructor(
     @InjectRepository(Document)
@@ -25,6 +25,93 @@ export class DocumentsService {
     
     private configService: ConfigService,
   ) {}
+
+  async checkAndIncrement(username: string): Promise<{
+    allowed: boolean;
+    dailyRemaining: number;
+    message?: string;
+    }> {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      let quota = await this.documentRepository.findOne({
+        where: { user: username },
+      });
+
+      // create new quota record if doesn't exist
+      if (!quota) {
+        quota = this.documentRepository.create({
+          user: username,
+          dailyCount: 0,
+          dailyResetDate: today,
+        });
+        await this.documentRepository.save(quota);
+      }
+
+      // reset daily count if new day
+      const resetDate = new Date(quota.dailyResetDate);
+      if (resetDate < today) {
+        quota.dailyCount = 0;
+        quota.dailyResetDate = today;
+      }
+
+      if (quota.dailyCount >= this.DAILY_LIMIT) {
+        this.logger.warn(`User ${username} exceeded daily limit`);
+        return {
+          allowed: false,
+          dailyRemaining: 0,
+          message: `Daily limit of ${this.DAILY_LIMIT} documents reached. Resets at midnight.`,
+        };
+      }
+
+      // increment counters
+      quota.dailyCount++;
+      quota.totalProcessed++
+      await this.documentRepository.save(quota);
+
+      this.logger.log(
+        `User ${username} processed document. Daily: ${quota.dailyCount}/${this.DAILY_LIMIT}`,
+      );
+
+      return {
+        allowed: true,
+        dailyRemaining: this.DAILY_LIMIT - quota.dailyCount,
+      };
+  }
+
+  async rollback(username: string): Promise<void> {
+    const document = await this.documentRepository.findOne({
+      where: { user: username },
+    });
+
+    if (document && document.dailyCount > 0) document.dailyCount--;
+    if (document && document.totalProcessed > 0)  document.totalProcessed--;
+    await this.documentRepository.save(document);
+    this.logger.log(`Rolled back processing count for user ${username}`);
+    
+  }
+
+  async getUsage(username: string) {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const [dailyCount, totalCount] = await Promise.all([
+      this.documentRepository.count({
+        where: {
+          user: username,
+          createdAt: MoreThanOrEqual(todayStart),
+        },
+      }),
+      this.documentRepository.count({ where: { user: username } })
+    ]);
+
+    return {
+      totalProcessed: totalCount,
+      dailyCount,
+      dailyLimit: this.DAILY_LIMIT,
+      dailyRemaining: this.DAILY_LIMIT - dailyCount,
+    };
+  }
 
   async create(documentData: Partial<Document>): Promise<Document> {
     const document = this.documentRepository.create(documentData);
@@ -36,49 +123,23 @@ export class DocumentsService {
     }
   }
 
+  async findByUser(username: string): Promise<Document | null> {
+    return this.documentRepository.findOne({ where: { user: username } });
+  }
+
+  async save(document: Document): Promise<Document> {
+    return this.documentRepository.save(document);
+  }
+
   async findOne(id: string): Promise<Document> {
     const document = await this.documentRepository.findOne({
       where: { id },
-      // relations: ['user'],
     });
 
     if (!document) {
       throw new NotFoundException(`Document with ID ${id} not found`);
     }
     return document;
-  }
-
-  // async findByUser(userID: string): Promise<Document[]> {
-  //   return this.documentRepository.find({
-  //     where: { userID },
-  //     order: { createdAt: 'DESC' },
-  //   });
-  // }
-
-  async update(id: string, updateData: Partial<Document>): Promise<Document> {
-    const document = await this.findOne(id);
-    Object.assign(document, updateData);
-    try {
-      return this.documentRepository.save(document);
-    } catch (error) {
-      this.logger.error(`Failed to update document ${id}: ${error.message}`);
-      throw new InternalServerErrorException('Failed to update document');
-    }
-  }
-
-  async updateStatus(id: string, status: ProcessingStatus): Promise<Document> {
-    const document = await this.findOne(id);
-    document.status = status;
-    try {
-      return this.documentRepository.save(document);
-    } catch (error) {
-      this.logger.error(
-        `Failed to update status for document ${id}: ${error.message}`,
-      );
-      throw new InternalServerErrorException(
-        'Failed to update document status',
-      );
-    }
   }
 
   async updateProcessingResult(
@@ -97,7 +158,6 @@ export class DocumentsService {
       formattedResume: updates.formattedResume,
       coverLetter: updates.coverLetter,
       feedback: updates.feedback,
-      status: updates.status || document.status,
       // error: updates.error,
     });
 
@@ -112,41 +172,6 @@ export class DocumentsService {
       );
     }
   }
-
-  // async saveFile(
-  //   file: Express.Multer.File,
-  //   documentID: string,
-  // ): Promise<string> {
-  //   const ext = path.extname(file.originalname);
-  //   const filename = `raw/${documentID}${ext}`;
-
-  //   try {
-  //     const { error: uploadError } = await this.supabase.storage
-  //       .from('documents')
-  //       .upload(filename, file.buffer, {
-  //         contentType: file.mimetype,
-  //         upsert: true,
-  //       });
-
-  //     if (uploadError) {
-  //       throw new InternalServerErrorException(`Failed to upload file: ${uploadError.message}`)
-  //     }
-      
-  //     // get public URL
-  //     const { data: publicData } = this.supabase.storage
-  //       .from('documents')
-  //       .getPublicUrl(filename);
-
-  //     this.logger.log(`Saved file for document ${documentID}`);
-  //     return publicData.publicUrl;
-      
-  //   } catch (error) {
-  //     this.logger.error(
-  //       `Failed to save file for document ${documentID}: ${error.message}`,
-  //     );
-  //     throw new InternalServerErrorException('Failed to save file');
-  //   }
-  // }
 
   async getFile(filePath: string): Promise<Buffer> {
     try {
@@ -169,33 +194,4 @@ export class DocumentsService {
       throw new NotFoundException(`File not found: ${filePath}`);
     }
   }
-
-  // async delete(id: string): Promise<void> {
-  //   const document = await this.findOne(id);
-
-  //   try {
-  //     const filePaths = [
-  //       document.originalFilePath,
-  //       document.formattedFilePath,
-  //       document.coverLetterPath,
-  //     ].filter(Boolean);
-
-  //     for (const filePath of filePaths) {
-  //       try {
-  //         await fs.unlink(filePath);
-  //         this.logger.log(`Deleted file ${filePath} for document ${id}`);
-  //       } catch (error) {
-  //         this.logger.warn(
-  //           `Failed to delete file ${filePath}: ${error.message}`,
-  //         );
-  //       }
-  //     }
-
-  //     await this.documentRepository.remove(document);
-  //     this.logger.log(`Deleted document ${id}`);
-  //   } catch (error) {
-  //     this.logger.error(`Failed to delete document ${id}: ${error.message}`);
-  //     throw new InternalServerErrorException('Failed to delete document');
-  //   }
-  // }
 }

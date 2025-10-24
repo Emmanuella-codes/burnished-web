@@ -95,10 +95,6 @@ export class ProcessingService {
       this.logger.error(
         `Failed to handle processing result for document ${result.documentID}: ${error.message}`,
       );
-      await this.documentsService.updateStatus(
-        result.documentID,
-        ProcessingStatus.FAILED,
-      );
     }
   }
 }

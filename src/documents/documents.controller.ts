@@ -7,14 +7,7 @@ import {
   UploadedFile,
   UseGuards,
   Req,
-  // InternalServerErrorException,
-  // Get,
-  // Param,
-  // NotFoundException,
-  // ParseUUIDPipe,
-  // Res,
-  // Delete,
-  // ClassSerializerInterceptor,
+  Get,
 } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -22,9 +15,6 @@ import { ProcessingMode } from '../processing/enums/processing-mode.enum';
 import { ProcessingStatus } from '../processing/enums/processing-status.enum';
 import { ProcessingService } from '../processing/processing.service';
 import { UploadDocumentDto } from './dto/upload-document.dto';
-// import { Response } from 'express';
-// import * as path from 'path';
-// import { DocumentResponseDto } from './dto/document-response.dto';
 import { ApiResponse } from '../common/dto/api-response.dto';
 import * as multer from 'multer';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -90,136 +80,58 @@ export class DocumentsController {
       );
     }
 
+    // check quota before processing
+    const quotaCheck = await this.documentsService.checkAndIncrement(req.user.name)
+    if (!quotaCheck.allowed) {
+      throw new BadRequestException(quotaCheck.message);
+    }
+
     try {
       //start processing
       const result = await this.processingService.processDocument(file, mode, jobDescription);
-      const document = await this.documentsService.create({
-        user: req.user.name,
-        originalFilename: file.originalname,
-        mimeType: file.mimetype,
-        mode,
-        status: ProcessingStatus.COMPLETED,
-      });
+      if (!result || result.error) {
+        throw new Error('Document processing failed');
+      }
 
+      let document = await this.documentsService.findByUser(req.user.name);
+
+      if (document) {
+        document.lastFilename = file.originalname;
+        document.mimeType = file.mimetype;
+        document.lastMode = mode;
+        document.lastProcessedAt = new Date();
+        document =  await this.documentsService.save(document);
+      } else {
+        document = await this.documentsService.create({
+          user: req.user.name,
+          lastFilename: file.originalname,
+          mimeType: file.mimetype,
+          lastMode: mode,
+          lastProcessedAt: new Date(),
+        })
+      }
+      
       return ApiResponse.success('Document processed successfully', {
-        id: document.id,
+        documentID: document.id,
         filename: file.originalname,
         status: ProcessingStatus.COMPLETED,
         feedback: result.feedback,
         formattedResume: result.formattedResume,
         coverLetter: result.coverLetter,
+        quota: {
+          dailyRemaining: quotaCheck.dailyRemaining
+        }
       });
     } catch (error) {
+      await this.documentsService.rollback(req.user.name);
       throw new BadRequestException(`Document processing failed: ${error.message}`);
     }
   }
 
-  // @Get()
-  // @UseGuards(JwtAuthGuard)
-  // @UseInterceptors(ClassSerializerInterceptor)
-  // async getUserDocuments(@Req() req): Promise<DocumentResponseDto[]> {
-  //   const documents = await this.documentsService.findByUser(req.user.id);
-  //   return documents.map((doc) => new DocumentResponseDto(doc));
-  // }
-
-  // @Get(':id')
-  // @UseGuards(JwtAuthGuard)
-  // @UseInterceptors(ClassSerializerInterceptor)
-  // async getDocument(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
-  //   const document = await this.documentsService.findOne(id);
-
-  //   //check if user owns this document
-  //   if (document.userID !== req.user.id) {
-  //     throw new NotFoundException('Document not found');
-  //   }
-  //   return new DocumentResponseDto(document);
-  // }
-
-  // @Get('download/:id')
-  // // @UseGuards(JwtAuthGuard)
-  // async downloadFormattedDocument(
-  //   @Param('id', ParseUUIDPipe) id: string,
-  //   @Req() req,
-  //   @Res({ passthrough: true }) res: Response,
-  // ) {
-  //   const document = await this.documentsService.findOne(id);
-  //   if (document.userID !== req.user.id) {
-  //     throw new NotFoundException('Document not found');
-  //   }
-  //   if (!document.formattedFilePath) {
-  //     throw new NotFoundException('Formatted document not available');
-  //   }
-
-  //   const fileStream = await this.documentsService.getFileStream(
-  //     document.formattedFilePath,
-  //   );
-  //   const filename = path.basename(document.formattedFilePath);
-
-  //   res.set({
-  //     'Content-Type': document.mimeType || 'application/pdf',
-  //     'Content-Disposition': `attachment; filename="${filename}"`,
-  //   });
-
-  //   fileStream.pipe(res);
-  // }
-
-  // @Get('cover-letter/:id')
-  // @UseGuards(JwtAuthGuard)
-  // async downloadCoverLetter(
-  //   @Param('id', ParseUUIDPipe) id: string,
-  //   @Req() req,
-  //   @Res() res: Response,
-  // ) {
-  //   const document = await this.documentsService.findOne(id);
-  //   if (document.userID !== req.user.id) {
-  //     throw new NotFoundException('Document not found');
-  //   }
-  //   if (!document.coverLetterPath) {
-  //     throw new NotFoundException('Cover letter not available');
-  //   }
-
-  //   const fileStream = await this.documentsService.getFileStream(
-  //     document.coverLetterPath,
-  //   );
-  //   const filename = path.basename(document.coverLetterPath);
-
-  //   res.set({
-  //     'Content-Type': 'application/pdf',
-  //     'Content-Disposition': `attachment; filename="${filename}"`,
-  //   });
-
-  //   return fileStream.pipe(res);
-  // }
-
-  // @Get('feedback/:id')
-  // @UseGuards(JwtAuthGuard)
-  // async getDocumentFeedback(
-  //   @Param('id', ParseUUIDPipe) id: string,
-  //   @Req() req,
-  // ) {
-  //   const document = await this.documentsService.findOne(id);
-
-  //   if (document.userID !== req.user.id) {
-  //     throw new NotFoundException('Document not found');
-  //   }
-
-  //   if (!document.feedback) {
-  //     throw new NotFoundException('Feedback not available for this document');
-  //   }
-
-  //   return { feedback: document.feedback };
-  // }
-
-//   @Delete(':id')
-//   @UseGuards(JwtAuthGuard)
-//   async deleteDocument(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
-//     const document = await this.documentsService.findOne(id);
-
-//     if (document.userID !== req.user.id) {
-//       throw new NotFoundException('Document not found');
-//     }
-
-//     await this.documentsService.delete(id);
-//     return { message: 'Document deleted successfully' };
-//   }
+  @Get('usage')
+  @UseGuards(JwtAuthGuard)
+  async getUsage(@Req() req) {
+    const usage = await this.documentsService.getUsage(req.user.name);
+    return ApiResponse.success('Usage retrieved successfully', usage);
+  }
 }
