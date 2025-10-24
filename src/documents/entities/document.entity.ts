@@ -6,7 +6,6 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ProcessingStatus } from '../../processing/enums/processing-status.enum';
 import { ProcessingMode } from '../../processing/enums/processing-mode.enum';
 
 @Entity()
@@ -17,25 +16,30 @@ export class Document {
   @Column()
   user: string;
 
-  @Column()
-  originalFilename: string;
+  @Column({ type: 'int', default: 0 })
+  totalProcessed: number;
 
-  @Column()
+  @Column({ type: 'int', default: 0 })
+  dailyCount: number;
+
+  @Column({ type: 'date', default: () => 'CURRENT_DATE' })
+  dailyResetDate: Date;
+
+  @Column({ nullable: true })
+  lastFilename: string;
+
+  @Column({ nullable: true })
   mimeType: string;
-
-  @Column({
-    type: 'enum',
-    enum: ProcessingStatus,
-    default: ProcessingStatus.PENDING,
-  })
-  status: ProcessingStatus;
 
   @Column({
     type: 'enum',
     enum: ProcessingMode,
     nullable: true,
   })
-  mode: ProcessingMode;
+  lastMode: ProcessingMode;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastProcessedAt: Date;
 
   @CreateDateColumn()
   createdAt: Date;
