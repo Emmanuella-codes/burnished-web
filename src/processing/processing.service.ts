@@ -7,7 +7,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { DocumentsService } from '../documents/documents.service';
 import { ProcessingStatus } from './enums/processing-status.enum';
-import * as FormData from 'form-data';
+// import * as FormData from 'form-data';
+import { Blob } from 'buffer';
 import { ProcessingMode } from './enums/processing-mode.enum';
 import { catchError, firstValueFrom } from 'rxjs';
 import { ProcessingResultDto } from './dto/processing-result.dto';
@@ -29,7 +30,8 @@ export class ProcessingService {
   ): Promise<any> {
     try {
       const form = new FormData();
-      form.append('file', file.buffer, { filename: file.originalname });
+      const blob = new Blob([file.buffer], { type: file.mimetype }) as any;
+      form.append('file', blob, file.originalname);
       form.append('mode', mode);
 
       if ((mode === ProcessingMode.FORMAT || mode === ProcessingMode.LETTER) && jobDescription) {
@@ -49,14 +51,18 @@ export class ProcessingService {
         throw new InternalServerErrorException('Microservice API key not configured');
       }
 
-      const headers = {
-        ...form.getHeaders(),
-        Authorization: `Bearer ${apiKey}`,
-      };
+      // const headers = {
+      //   ...form.getHeaders(),
+      //   Authorization: `Bearer ${apiKey}`,
+      // };
 
       const { data } = await firstValueFrom(
         this.httpService
-          .post(`${microServiceUrl}/process`, form, { headers })
+          .post(`${microServiceUrl}/process`, form, { 
+              headers: {
+              Authorization: `Bearer ${apiKey}`,
+            },
+           })
           .pipe(
             catchError((error) => {
               const msg = error.response?.data?.message || error.message;
