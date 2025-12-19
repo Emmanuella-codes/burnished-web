@@ -17,7 +17,7 @@ import { ProcessingMode } from '../processing/enums/processing-mode.enum';
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
-  private readonly DAILY_LIMIT = 20;
+  private readonly DAILY_LIMIT = 2;
 
   constructor(
     @InjectRepository(Document)
@@ -32,51 +32,57 @@ export class DocumentsService {
     message?: string;
     }> {
       const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayUTC = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+      ));
 
-      let quota = await this.documentRepository.findOne({
-        where: { user: username },
-      });
+      try {
+        return await this.documentRepository.manager.transaction(async manager => {
+          let quota = await manager.findOne(Document, {
+            where: { user: username },
+            lock: { mode: "pessimistic_write" },
+          });
 
-      // create new quota record if doesn't exist
-      if (!quota) {
-        quota = this.documentRepository.create({
-          user: username,
-          dailyCount: 0,
-          dailyResetDate: today,
+          // create new quota record if doesn't exist
+          if (!quota) {
+            quota = this.documentRepository.create({
+              user: username,
+              dailyCount: 0,
+              totalProcessed: 0,
+              dailyResetDate: todayUTC,
+            })
+          }
+
+          // reset daily count if new day
+          if (new Date(quota.dailyResetDate) < todayUTC) {
+            quota.dailyCount = 0;
+            quota.dailyResetDate = todayUTC;
+          }
+
+          if (quota.dailyCount >= this.DAILY_LIMIT) {
+            return {
+              allowed: false,
+              dailyRemaining: 0,
+              message: `Daily limit of ${this.DAILY_LIMIT} reached. Resets at midnight.`,
+            };
+          }
+
+          quota.dailyCount++;
+          quota.totalProcessed++;
+
+          await manager.save(quota);
+
+          return {
+            allowed: true,
+            dailyRemaining: this.DAILY_LIMIT - quota.dailyCount,
+          };
         });
-        await this.documentRepository.save(quota);
+      } catch (error) {
+        this.logger.error("Quota check failed", error);
+        throw error;
       }
-
-      // reset daily count if new day
-      const resetDate = new Date(quota.dailyResetDate);
-      if (resetDate < today) {
-        quota.dailyCount = 0;
-        quota.dailyResetDate = today;
-      }
-
-      if (quota.dailyCount >= this.DAILY_LIMIT) {
-        this.logger.warn(`User ${username} exceeded daily limit`);
-        return {
-          allowed: false,
-          dailyRemaining: 0,
-          message: `Daily limit of ${this.DAILY_LIMIT} documents reached. Resets at midnight.`,
-        };
-      }
-
-      // increment counters
-      quota.dailyCount++;
-      quota.totalProcessed++
-      await this.documentRepository.save(quota);
-
-      this.logger.log(
-        `User ${username} processed document. Daily: ${quota.dailyCount}/${this.DAILY_LIMIT}`,
-      );
-
-      return {
-        allowed: true,
-        dailyRemaining: this.DAILY_LIMIT - quota.dailyCount,
-      };
   }
 
   async rollback(username: string): Promise<void> {
