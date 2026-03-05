@@ -12,7 +12,7 @@ import { ProcessingStatus } from '../processing/enums/processing-status.enum';
 import * as fs from 'fs/promises';
 import { Readable } from 'stream';
 import * as fsSync from 'fs';
-import { ProcessingMode } from '../processing/enums/processing-mode.enum';
+// import { ProcessingMode } from '../processing/enums/processing-mode.enum';
 
 @Injectable()
 export class DocumentsService {
@@ -22,7 +22,7 @@ export class DocumentsService {
   constructor(
     @InjectRepository(Document)
     private documentRepository: Repository<Document>,
-    
+
     private configService: ConfigService,
   ) {}
 
@@ -30,19 +30,18 @@ export class DocumentsService {
     allowed: boolean;
     dailyRemaining: number;
     message?: string;
-    }> {
-      const now = new Date();
-      const todayUTC = new Date(Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate(),
-      ));
+  }> {
+    const now = new Date();
+    const todayUTC = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
 
-      try {
-        return await this.documentRepository.manager.transaction(async manager => {
+    try {
+      return await this.documentRepository.manager.transaction(
+        async (manager) => {
           let quota = await manager.findOne(Document, {
             where: { user: username },
-            lock: { mode: "pessimistic_write" },
+            lock: { mode: 'pessimistic_write' },
           });
 
           // create new quota record if doesn't exist
@@ -52,7 +51,7 @@ export class DocumentsService {
               dailyCount: 0,
               totalProcessed: 0,
               dailyResetDate: todayUTC,
-            })
+            });
           }
 
           // reset daily count if new day
@@ -65,7 +64,7 @@ export class DocumentsService {
             return {
               allowed: false,
               dailyRemaining: 0,
-              message: `Daily limit of ${this.DAILY_LIMIT} reached. Resets at midnight.`,
+              message: `Daily limit of ${this.DAILY_LIMIT} reached. Resets at 00:00 UTC.`,
             };
           }
 
@@ -78,11 +77,12 @@ export class DocumentsService {
             allowed: true,
             dailyRemaining: this.DAILY_LIMIT - quota.dailyCount,
           };
-        });
-      } catch (error) {
-        this.logger.error("Quota check failed", error);
-        throw error;
-      }
+        },
+      );
+    } catch (error) {
+      this.logger.error('Quota check failed', error);
+      throw error;
+    }
   }
 
   async rollback(username: string): Promise<void> {
@@ -91,16 +91,18 @@ export class DocumentsService {
     });
 
     if (document && document.dailyCount > 0) document.dailyCount--;
-    if (document && document.totalProcessed > 0)  document.totalProcessed--;
+    if (document && document.totalProcessed > 0) document.totalProcessed--;
     await this.documentRepository.save(document);
     this.logger.log(`Rolled back processing count for user ${username}`);
-    
   }
 
   async getUsage(username: string) {
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     const [dailyCount, totalCount] = await Promise.all([
       this.documentRepository.count({
         where: {
@@ -108,7 +110,7 @@ export class DocumentsService {
           createdAt: MoreThanOrEqual(todayStart),
         },
       }),
-      this.documentRepository.count({ where: { user: username } })
+      this.documentRepository.count({ where: { user: username } }),
     ]);
 
     return {
