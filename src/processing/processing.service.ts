@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { DocumentsService } from '../documents/documents.service';
 // import { ProcessingStatus } from './enums/processing-status.enum';
-import FormData from 'form-data';
+import * as FormData from 'form-data';
 import { ProcessingMode } from './enums/processing-mode.enum';
 import { catchError, firstValueFrom } from 'rxjs';
 import { ProcessingResultDto } from './dto/processing-result.dto';
