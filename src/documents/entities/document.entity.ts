@@ -25,20 +25,19 @@ export class Document {
   @Column({ type: 'date', default: () => 'CURRENT_DATE' })
   dailyResetDate: Date;
 
-  @Column({ nullable: true })
+  @Column()
   lastFilename: string;
 
-  @Column({ nullable: true })
+  @Column()
   mimeType: string;
 
   @Column({
     type: 'enum',
     enum: ProcessingMode,
-    nullable: true,
   })
   lastMode: ProcessingMode;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamp' })
   lastProcessedAt: Date;
 
   @CreateDateColumn()

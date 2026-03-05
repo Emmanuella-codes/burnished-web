@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -7,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Document } from './entities/document.entity';
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ProcessingStatus } from '../processing/enums/processing-status.enum';
 import * as fs from 'fs/promises';
 import { Readable } from 'stream';
@@ -22,119 +23,144 @@ export class DocumentsService {
   constructor(
     @InjectRepository(Document)
     private documentRepository: Repository<Document>,
-    
+
     private configService: ConfigService,
   ) {}
 
-  async checkAndIncrement(username: string): Promise<{
+  async checkQuota(username: string): Promise<{
     allowed: boolean;
     dailyRemaining: number;
     message?: string;
-    }> {
-      const now = new Date();
-      const todayUTC = new Date(Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate(),
-      ));
+  }> {
+    const now = new Date();
+    const todayUTC = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
 
-      try {
-        return await this.documentRepository.manager.transaction(async manager => {
-          let quota = await manager.findOne(Document, {
-            where: { user: username },
-            lock: { mode: "pessimistic_write" },
-          });
+    try {
+      const quota = await this.documentRepository.findOne({
+        where: { user: username },
+      });
 
-          // create new quota record if doesn't exist
-          if (!quota) {
-            quota = this.documentRepository.create({
-              user: username,
-              dailyCount: 0,
-              totalProcessed: 0,
-              dailyResetDate: todayUTC,
-            })
-          }
-
-          // reset daily count if new day
-          if (new Date(quota.dailyResetDate) < todayUTC) {
-            quota.dailyCount = 0;
-            quota.dailyResetDate = todayUTC;
-          }
-
-          if (quota.dailyCount >= this.DAILY_LIMIT) {
-            return {
-              allowed: false,
-              dailyRemaining: 0,
-              message: `Daily limit of ${this.DAILY_LIMIT} reached. Resets at midnight.`,
-            };
-          }
-
-          quota.dailyCount++;
-          quota.totalProcessed++;
-
-          await manager.save(quota);
-
-          return {
-            allowed: true,
-            dailyRemaining: this.DAILY_LIMIT - quota.dailyCount,
-          };
-        });
-      } catch (error) {
-        this.logger.error("Quota check failed", error);
-        throw error;
+      if (!quota) {
+        return {
+          allowed: true,
+          dailyRemaining: this.DAILY_LIMIT,
+        };
       }
+
+      let dailyCount = quota.dailyCount;
+      if (new Date(quota.dailyResetDate) < todayUTC) {
+        dailyCount = 0;
+      }
+
+      if (dailyCount >= this.DAILY_LIMIT) {
+        return {
+          allowed: false,
+          dailyRemaining: 0,
+          message: `Daily limit of ${this.DAILY_LIMIT} reached. Resets at 00:00 UTC.`,
+        };
+      }
+
+      return {
+        allowed: true,
+        dailyRemaining: this.DAILY_LIMIT - dailyCount,
+      };
+    } catch (error) {
+      this.logger.error('Quota check failed', error);
+      throw error;
+    }
   }
 
-  async rollback(username: string): Promise<void> {
-    const document = await this.documentRepository.findOne({
-      where: { user: username },
-    });
+  async commitUsage(
+    username: string,
+    updates: {
+      lastFilename: string;
+      mimeType: string;
+      lastMode: ProcessingMode;
+      lastProcessedAt: Date;
+    },
+  ): Promise<{ dailyRemaining: number; document: Document }> {
+    const now = new Date();
+    const todayUTC = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
 
-    if (document && document.dailyCount > 0) document.dailyCount--;
-    if (document && document.totalProcessed > 0)  document.totalProcessed--;
-    await this.documentRepository.save(document);
-    this.logger.log(`Rolled back processing count for user ${username}`);
-    
+    return this.documentRepository.manager.transaction(async (manager) => {
+      let document = await manager.findOne(Document, {
+        where: { user: username },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!document) {
+        document = manager.create(Document, {
+          user: username,
+          dailyCount: 0,
+          totalProcessed: 0,
+          dailyResetDate: todayUTC,
+        });
+      }
+
+      if (new Date(document.dailyResetDate) < todayUTC) {
+        document.dailyCount = 0;
+        document.dailyResetDate = todayUTC;
+      }
+
+      if (document.dailyCount >= this.DAILY_LIMIT) {
+        throw new BadRequestException(
+          `Daily limit of ${this.DAILY_LIMIT} reached. Resets at 00:00 UTC.`,
+        );
+      }
+
+      document.dailyCount++;
+      document.totalProcessed++;
+      document.lastFilename = updates.lastFilename;
+      document.mimeType = updates.mimeType;
+      document.lastMode = updates.lastMode;
+      document.lastProcessedAt = updates.lastProcessedAt;
+
+      document = await manager.save(document);
+
+      return {
+        dailyRemaining: this.DAILY_LIMIT - document.dailyCount,
+        document,
+      };
+    });
   }
 
   async getUsage(username: string) {
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    const [dailyCount, totalCount] = await Promise.all([
-      this.documentRepository.count({
-        where: {
-          user: username,
-          createdAt: MoreThanOrEqual(todayStart),
-        },
-      }),
-      this.documentRepository.count({ where: { user: username } })
-    ]);
+    const todayUTC = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+    const document = await this.documentRepository.findOne({
+      where: { user: username },
+    });
+
+    if (!document) {
+      return {
+        totalProcessed: 0,
+        dailyCount: 0,
+        dailyLimit: this.DAILY_LIMIT,
+        dailyRemaining: this.DAILY_LIMIT,
+      };
+    }
+
+    let dailyCount = document.dailyCount;
+    if (new Date(document.dailyResetDate) < todayUTC) {
+      dailyCount = 0;
+    }
 
     return {
-      totalProcessed: totalCount,
+      totalProcessed: document.totalProcessed,
       dailyCount,
       dailyLimit: this.DAILY_LIMIT,
       dailyRemaining: this.DAILY_LIMIT - dailyCount,
     };
   }
 
-  async create(documentData: Partial<Document>): Promise<Document> {
-    const document = this.documentRepository.create(documentData);
-    try {
-      return this.documentRepository.save(document);
-    } catch (error) {
-      this.logger.error(`Failed to create document: ${error.message}`);
-      throw new InternalServerErrorException('Failed to create document');
-    }
-  }
-
   async findByUser(username: string): Promise<Document | null> {
     return this.documentRepository.findOne({ where: { user: username } });
-  }
-
-  async save(document: Document): Promise<Document> {
-    return this.documentRepository.save(document);
   }
 
   async findOne(id: string): Promise<Document> {

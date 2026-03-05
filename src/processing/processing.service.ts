@@ -6,9 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentsService } from '../documents/documents.service';
-import { ProcessingStatus } from './enums/processing-status.enum';
-// import * as FormData from 'form-data';
-import { Blob } from 'buffer';
+// import { ProcessingStatus } from './enums/processing-status.enum';
+import FormData from 'form-data';
 import { ProcessingMode } from './enums/processing-mode.enum';
 import { catchError, firstValueFrom } from 'rxjs';
 import { ProcessingResultDto } from './dto/processing-result.dto';
@@ -30,44 +29,56 @@ export class ProcessingService {
   ): Promise<any> {
     try {
       const form = new FormData();
-      const blob = new Blob([file.buffer], { type: file.mimetype }) as any;
-      form.append('file', blob, file.originalname);
+      form.append('file', file.buffer, {
+        filename: file.originalname,
+        contentType: file.mimetype,
+      });
       form.append('mode', mode);
 
-      if ((mode === ProcessingMode.FORMAT || mode === ProcessingMode.LETTER) && jobDescription) {
+      if (
+        (mode === ProcessingMode.FORMAT || mode === ProcessingMode.LETTER) &&
+        jobDescription
+      ) {
         form.append('jobDescription', jobDescription);
-        this.logger.log(`Sending jobDescription: ${jobDescription.substring(0, 100)}...`);
+        this.logger.log(
+          `Sending jobDescription: ${jobDescription.substring(0, 100)}...`,
+        );
       } else if (mode === ProcessingMode.LETTER && !jobDescription) {
-        this.logger.error('Letter mode requires jobDescription but none provided');
+        this.logger.error(
+          'Letter mode requires jobDescription but none provided',
+        );
       }
 
-      const microServiceUrl = this.configService.get<string>('MICROSERVICE_URL');
+      const microServiceUrl =
+        this.configService.get<string>('MICROSERVICE_URL');
       const apiKey = this.configService.get<string>('MICROSERVICE_API_KEY');
 
       if (!microServiceUrl) {
-        throw new InternalServerErrorException('Microservice URL not configured');
+        throw new InternalServerErrorException(
+          'Microservice URL not configured',
+        );
       }
       if (!apiKey) {
-        throw new InternalServerErrorException('Microservice API key not configured');
+        throw new InternalServerErrorException(
+          'Microservice API key not configured',
+        );
       }
 
-      // const headers = {
-      //   ...form.getHeaders(),
-      //   Authorization: `Bearer ${apiKey}`,
-      // };
+      const headers = {
+        ...form.getHeaders(),
+        Authorization: `Bearer ${apiKey}`,
+      };
 
       const { data } = await firstValueFrom(
         this.httpService
-          .post(`${microServiceUrl}/process`, form, { 
-              headers: {
-              Authorization: `Bearer ${apiKey}`,
-            },
-           })
+          .post(`${microServiceUrl}/process`, form, { headers })
           .pipe(
             catchError((error) => {
               const msg = error.response?.data?.message || error.message;
               this.logger.error(`Error calling microservice: ${msg}`);
-              throw new InternalServerErrorException(`Microservice error: ${msg}`);
+              throw new InternalServerErrorException(
+                `Microservice error: ${msg}`,
+              );
             }),
           ),
       );
@@ -89,8 +100,11 @@ export class ProcessingService {
       await this.documentsService.updateProcessingResult(result.documentID, {
         formattedResume: result.formattedResume,
         coverLetter: result.coverLetter,
-        feedback: typeof result.feedback === 'string' ? result.feedback : JSON.stringify(result.feedback),
-        status: result.status
+        feedback:
+          typeof result.feedback === 'string'
+            ? result.feedback
+            : JSON.stringify(result.feedback),
+        status: result.status,
         // error: result.error,
       });
 
