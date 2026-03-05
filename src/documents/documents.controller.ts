@@ -81,7 +81,7 @@ export class DocumentsController {
     }
 
     // check quota before processing
-    const quotaCheck = await this.documentsService.checkAndIncrement(req.user.name)
+    const quotaCheck = await this.documentsService.checkQuota(req.user.name)
     if (!quotaCheck.allowed) {
       throw new BadRequestException(quotaCheck.message);
     }
@@ -93,23 +93,15 @@ export class DocumentsController {
         throw new Error('Document processing failed');
       }
 
-      let document = await this.documentsService.findByUser(req.user.name);
-
-      if (document) {
-        document.lastFilename = file.originalname;
-        document.mimeType = file.mimetype;
-        document.lastMode = mode;
-        document.lastProcessedAt = new Date();
-        document =  await this.documentsService.save(document);
-      } else {
-        document = await this.documentsService.create({
-          user: req.user.name,
+      const { document, dailyRemaining } = await this.documentsService.commitUsage(
+        req.user.name,
+        {
           lastFilename: file.originalname,
           mimeType: file.mimetype,
           lastMode: mode,
           lastProcessedAt: new Date(),
-        })
-      }
+        },
+      );
       
       return ApiResponse.success('Document processed successfully', {
         documentID: document.id,
@@ -119,11 +111,10 @@ export class DocumentsController {
         formattedResume: result.formattedResume,
         coverLetter: result.coverLetter,
         quota: {
-          dailyRemaining: quotaCheck.dailyRemaining
+          dailyRemaining,
         }
       });
     } catch (error) {
-      await this.documentsService.rollback(req.user.name);
       throw new BadRequestException(`Document processing failed: ${error.message}`);
     }
   }
