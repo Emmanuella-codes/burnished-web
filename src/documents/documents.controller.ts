@@ -61,9 +61,7 @@ export class DocumentsController {
     const { mode, jobDescription } = body;
 
     if (!mode) {
-      throw new BadRequestException(
-        'mode is required'
-      )
+      throw new BadRequestException('mode is required');
     }
 
     // formatting mode
@@ -81,28 +79,30 @@ export class DocumentsController {
     }
 
     // check quota before processing
-    const quotaCheck = await this.documentsService.checkQuota(req.user.name)
+    const quotaCheck = await this.documentsService.checkQuota(req.user.name);
     if (!quotaCheck.allowed) {
       throw new BadRequestException(quotaCheck.message);
     }
 
     try {
       //start processing
-      const result = await this.processingService.processDocument(file, mode, jobDescription);
+      const result = await this.processingService.processDocument(
+        file,
+        mode,
+        jobDescription,
+      );
       if (!result || result.error) {
         throw new Error('Document processing failed');
       }
 
-      const { document, dailyRemaining } = await this.documentsService.commitUsage(
-        req.user.name,
-        {
+      const { document, dailyRemaining } =
+        await this.documentsService.commitUsage(req.user.name, {
           lastFilename: file.originalname,
           mimeType: file.mimetype,
           lastMode: mode,
           lastProcessedAt: new Date(),
-        },
-      );
-      
+        });
+
       return ApiResponse.success('Document processed successfully', {
         documentID: document.id,
         filename: file.originalname,
@@ -112,10 +112,12 @@ export class DocumentsController {
         coverLetter: result.coverLetter,
         quota: {
           dailyRemaining,
-        }
+        },
       });
     } catch (error) {
-      throw new BadRequestException(`Document processing failed: ${error.message}`);
+      throw new BadRequestException(
+        `Document processing failed: ${error.message}`,
+      );
     }
   }
 

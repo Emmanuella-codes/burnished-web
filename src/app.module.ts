@@ -16,7 +16,7 @@ import { SupabaseProvider } from './supabase/superbase.provider';
     // configure typeorm with postgresql
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ".env",
+      envFilePath: '.env',
       load: [
         () => ({
           database: {
