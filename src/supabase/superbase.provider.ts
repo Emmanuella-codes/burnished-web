@@ -1,6 +1,6 @@
-import { Provider } from "@nestjs/common"
-import { ConfigService } from "@nestjs/config"
-import { SupabaseClient } from "@supabase/supabase-js"
+import { Provider } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export const SupabaseProvider: Provider = {
   provide: 'SUPABASE_CLIENT',
@@ -13,4 +13,4 @@ export const SupabaseProvider: Provider = {
     }
     return new SupabaseClient(url, key);
   },
-}
+};
