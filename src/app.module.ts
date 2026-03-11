@@ -10,6 +10,7 @@ import { HttpModule } from '@nestjs/axios';
 import { MulterModule } from '@nestjs/platform-express';
 import { ProcessingModule } from './processing/processing.module';
 import { SupabaseProvider } from './supabase/superbase.provider';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { SupabaseProvider } from './supabase/superbase.provider';
         logging: configService.get<string>('NODE_ENV') !== 'production',
       }),
     }),
+    HealthModule,
     AuthModule,
     DocumentsModule,
     ProcessingModule,
